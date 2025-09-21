@@ -34,16 +34,16 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={<DashboardLayout />}>
         <Route index element={<Dashboard />} />
         <Route 
-          path="/schedule" 
+          path="schedule" 
           element={
             <ProtectedRoute requiresScheduling>
               <Schedule />
             </ProtectedRoute>
           } 
         />
-        <Route path="/history" element={<History />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/profile" element={<Profile />} />
+        <Route path="history" element={<History />} />
+        <Route path="notifications" element={<Notifications />} />
+        <Route path="profile" element={<Profile />} />
       </Route>
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<NotFound />} />
