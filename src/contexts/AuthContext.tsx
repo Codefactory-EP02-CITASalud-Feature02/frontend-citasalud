@@ -38,10 +38,19 @@ const mockUsers: Record<string, { password: string; user: User }> = {
       email: 'juan.perez@hospital.com',
       role: 'patient'
     }
+  },
+  'ana.lopez@hospital.com': {
+    password: '123456',
+    user: {
+      id: '3',
+      name: 'Ana López',
+      email: 'ana.lopez@hospital.com',
+      role: 'patient'
+    }
   }
 };
 
-const rolesWithSchedulingAccess = ['doctor', 'admin', 'nurse'];
+const rolesWithSchedulingAccess = ['doctor', 'admin', 'nurse', 'patient'];
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
