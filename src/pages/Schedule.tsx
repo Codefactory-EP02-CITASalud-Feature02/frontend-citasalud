@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import BookingFlow from '@/components/booking/BookingFlow';
+import PatientBookingFlow from '@/components/booking/PatientBookingFlow';
 
 const Schedule: React.FC = () => {
   const { hasSchedulingAccess } = useAuth();
@@ -22,7 +22,7 @@ const Schedule: React.FC = () => {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground mb-4">
-                Solo los usuarios con roles de Doctor, Administrador o Enfermero 
+                Solo los usuarios con roles de Doctor, Administrador, Enfermero o Paciente 
                 pueden acceder a esta funcionalidad.
               </p>
               <Button 
@@ -42,14 +42,14 @@ const Schedule: React.FC = () => {
     <div className="p-6">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">
-          Agendar Examen Diagnóstico
+          Agendar Nueva Cita
         </h1>
         <p className="text-muted-foreground">
-          Complete el proceso paso a paso para agendar su cita médica.
+          Seleccione la fecha, sede y tipo de examen para su cita médica.
         </p>
       </header>
 
-      <BookingFlow />
+      <PatientBookingFlow />
     </div>
   );
 };
