@@ -23,7 +23,8 @@ const Dashboard: React.FC = () => {
       title: 'Agendar Cita',
       description: 'Programe una nueva cita médica',
       icon: Calendar,
-      color: 'medical-blue',
+      colorClass: 'text-medical-blue',
+      bgClass: 'bg-medical-blue/10',
       href: '/schedule',
       requiresScheduling: true
     },
@@ -31,21 +32,24 @@ const Dashboard: React.FC = () => {
       title: 'Ver Historial',
       description: 'Consulte sus citas anteriores',
       icon: FileText,
-      color: 'medical-green',
+      colorClass: 'text-medical-green',
+      bgClass: 'bg-medical-green/10',
       href: '/history'
     },
     {
       title: 'Notificaciones',
       description: 'Revise sus mensajes y recordatorios',
       icon: Bell,
-      color: 'medical-orange',
+      colorClass: 'text-medical-orange',
+      bgClass: 'bg-medical-orange/10',
       href: '/notifications'
     },
     {
       title: 'Mi Perfil',
       description: 'Actualice su información personal',
       icon: User,
-      color: 'medical-purple',
+      colorClass: 'text-medical-purple',
+      bgClass: 'bg-medical-purple/10',
       href: '/profile'
     }
   ];
@@ -76,7 +80,7 @@ const Dashboard: React.FC = () => {
       title: 'Consulta General - Dr. López',
       date: '2024-01-15',
       icon: CheckCircle,
-      color: 'medical-green'
+      colorClass: 'text-medical-green'
     },
     {
       id: '2',
@@ -84,7 +88,7 @@ const Dashboard: React.FC = () => {
       title: 'Examen de Sangre - Lab Central',
       date: '2024-01-10',
       icon: CheckCircle,
-      color: 'medical-green'
+      colorClass: 'text-medical-green'
     },
     {
       id: '3',
@@ -92,7 +96,7 @@ const Dashboard: React.FC = () => {
       title: 'Próxima cita en 3 días',
       date: '2024-01-20',
       icon: Clock,
-      color: 'medical-orange'
+      colorClass: 'text-medical-orange'
     }
   ];
 
@@ -131,8 +135,8 @@ const Dashboard: React.FC = () => {
                 onClick={() => handleQuickAction(action.href, action.requiresScheduling)}
               >
                 <CardHeader className="pb-3">
-                  <div className={`w-12 h-12 rounded-lg bg-${action.color}/10 flex items-center justify-center mb-3`}>
-                    <action.icon className={`h-6 w-6 text-${action.color}`} />
+                  <div className={`w-12 h-12 rounded-lg ${action.bgClass} flex items-center justify-center mb-3`}>
+                    <action.icon className={`h-6 w-6 ${action.colorClass}`} />
                   </div>
                   <CardTitle className="text-lg">{action.title}</CardTitle>
                   <CardDescription>{action.description}</CardDescription>
@@ -206,7 +210,7 @@ const Dashboard: React.FC = () => {
                     key={activity.id}
                     className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50"
                   >
-                    <activity.icon className={`h-5 w-5 text-${activity.color} mt-0.5`} />
+                    <activity.icon className={`h-5 w-5 ${activity.colorClass} mt-0.5`} />
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-foreground">
                         {activity.title}

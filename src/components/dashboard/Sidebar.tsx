@@ -26,7 +26,7 @@ const Sidebar: React.FC = () => {
   return (
     <div className="w-64 bg-secondary min-h-screen flex flex-col border-r border-border">
       <div className="p-6 border-b border-border">
-        <h1 className="text-lg font-semibold text-foreground">Sistema Médico</h1>
+        <h1 className="text-lg font-semibold text-medical-blue">Sistema Médico</h1>
       </div>
       
       <nav className="flex-1 px-4 py-6" role="navigation" aria-label="Menú principal">
