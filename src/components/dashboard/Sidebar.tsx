@@ -14,10 +14,10 @@ import { Button } from '@/components/ui/button';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Agendar Citas', href: '/schedule', icon: Calendar, requiresScheduling: true },
-  { name: 'Historial', href: '/history', icon: History },
-  { name: 'Notificaciones', href: '/notifications', icon: Bell },
-  { name: 'Perfil', href: '/profile', icon: User },
+  { name: 'Agendar Citas', href: '/dashboard/schedule', icon: Calendar, requiresScheduling: true },
+  { name: 'Historial', href: '/dashboard/history', icon: History },
+  { name: 'Notificaciones', href: '/dashboard/notifications', icon: Bell },
+  { name: 'Perfil', href: '/dashboard/profile', icon: User },
 ];
 
 const Sidebar: React.FC = () => {

@@ -25,7 +25,7 @@ const Dashboard: React.FC = () => {
       icon: Calendar,
       colorClass: 'text-medical-blue',
       bgClass: 'bg-medical-blue/10',
-      href: '/schedule',
+      href: '/dashboard/schedule',
       requiresScheduling: true
     },
     {
@@ -34,7 +34,7 @@ const Dashboard: React.FC = () => {
       icon: FileText,
       colorClass: 'text-medical-green',
       bgClass: 'bg-medical-green/10',
-      href: '/history'
+      href: '/dashboard/history'
     },
     {
       title: 'Notificaciones',
@@ -42,7 +42,7 @@ const Dashboard: React.FC = () => {
       icon: Bell,
       colorClass: 'text-medical-orange',
       bgClass: 'bg-medical-orange/10',
-      href: '/notifications'
+      href: '/dashboard/notifications'
     },
     {
       title: 'Mi Perfil',
@@ -50,7 +50,7 @@ const Dashboard: React.FC = () => {
       icon: User,
       colorClass: 'text-medical-purple',
       bgClass: 'bg-medical-purple/10',
-      href: '/profile'
+      href: '/dashboard/profile'
     }
   ];
 
