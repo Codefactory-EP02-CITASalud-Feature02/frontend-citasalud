@@ -115,6 +115,31 @@ const PatientBookingFlow: React.FC = () => {
   };
 
   const handleConfirmBooking = () => {
+    // Add notification to localStorage
+    const notification = {
+      title: 'Cita Confirmada',
+      message: `Su cita de ${bookingData.specificExam} ha sido confirmada para el ${bookingData.date && format(bookingData.date, "dd/MM/yyyy", { locale: es })} a las ${bookingData.time} en ${locations.find(l => l.id === bookingData.location)?.name}`,
+      type: 'confirmation' as const,
+      priority: 'high' as const,
+      icon: 'Calendar',
+      sentVia: 'Email'
+    };
+    
+    const existingNotifications = JSON.parse(localStorage.getItem('medical-app-notifications') || '[]');
+    const newNotification = {
+      ...notification,
+      id: Date.now().toString(),
+      time: new Date().toLocaleString('es-ES', { 
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      read: false
+    };
+    localStorage.setItem('medical-app-notifications', JSON.stringify([newNotification, ...existingNotifications]));
+    
     setCurrentStep(5); // Go to success screen
     
     // Simulate notification

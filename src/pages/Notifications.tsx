@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,19 @@ import {
   Mail,
   MessageSquare
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: 'reminder' | 'confirmation' | 'cancelled' | 'results' | 'system';
+  priority: 'high' | 'medium' | 'low';
+  time: string;
+  read: boolean;
+  icon: string;
+  sentVia: string;
+}
 
 const Notifications: React.FC = () => {
   const [emailReminders, setEmailReminders] = useState(true);
@@ -24,8 +37,41 @@ const Notifications: React.FC = () => {
   const [systemNotifications, setSystemNotifications] = useState(true);
   const [appointmentReminders, setAppointmentReminders] = useState(true);
   const [resultNotifications, setResultNotifications] = useState(true);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const { toast } = useToast();
 
-  const notifications = [
+  // Load notifications from localStorage
+  useEffect(() => {
+    const loadNotifications = () => {
+      const stored = localStorage.getItem('medical-app-notifications');
+      if (stored) {
+        try {
+          setNotifications(JSON.parse(stored));
+        } catch (error) {
+          console.error('Error loading notifications:', error);
+        }
+      }
+    };
+    
+    loadNotifications();
+    
+    // Listen for storage changes (when notifications are added)
+    const handleStorageChange = () => {
+      loadNotifications();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically in case localStorage was updated in the same tab
+    const interval = setInterval(loadNotifications, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const sampleNotifications: NotificationItem[] = [
     {
       id: '1',
       title: 'Recordatorio de Cita',
@@ -34,7 +80,7 @@ const Notifications: React.FC = () => {
       priority: 'high',
       time: '2025-01-14 • 09:00',
       read: false,
-      icon: AlertCircle,
+      icon: 'AlertCircle',
       sentVia: 'Email y SMS'
     },
     {
@@ -45,7 +91,7 @@ const Notifications: React.FC = () => {
       priority: 'medium',
       time: '2025-10-08 • 14:30',
       read: false,
-      icon: Calendar,
+      icon: 'Calendar',
       sentVia: 'Email'
     },
     {
@@ -56,7 +102,7 @@ const Notifications: React.FC = () => {
       priority: 'medium',
       time: '2024-12-03 • 14:30',
       read: false,
-      icon: AlertCircle,
+      icon: 'AlertCircle',
       sentVia: 'Email y SMS'
     },
     {
@@ -67,7 +113,7 @@ const Notifications: React.FC = () => {
       priority: 'medium',
       time: '1 día',
       read: true,
-      icon: CheckCircle,
+      icon: 'CheckCircle',
       sentVia: 'Email'
     },
     {
@@ -78,10 +124,21 @@ const Notifications: React.FC = () => {
       priority: 'low',
       time: '2 días',
       read: true,
-      icon: Info,
+      icon: 'Info',
       sentVia: 'Sistema'
     }
   ];
+
+  const getIconComponent = (iconName: string) => {
+    const icons: Record<string, React.ComponentType<any>> = {
+      AlertCircle,
+      Calendar,
+      CheckCircle,
+      Info,
+      Bell
+    };
+    return icons[iconName] || Bell;
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -143,7 +200,31 @@ const Notifications: React.FC = () => {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const handleDeleteNotification = (id: string) => {
+    const updated = notifications.filter(n => n.id !== id);
+    setNotifications(updated);
+    localStorage.setItem('medical-app-notifications', JSON.stringify(updated));
+    
+    toast({
+      title: "Notificación eliminada",
+      description: "La notificación ha sido eliminada correctamente.",
+    });
+  };
+
+  const handleMarkAllAsRead = () => {
+    const updated = notifications.map(n => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem('medical-app-notifications', JSON.stringify(updated));
+    
+    toast({
+      title: "Notificaciones actualizadas",
+      description: "Todas las notificaciones han sido marcadas como leídas.",
+    });
+  };
+
+  // Combine real notifications with sample ones
+  const allNotifications = [...notifications, ...sampleNotifications];
+  const unreadCount = allNotifications.filter(n => !n.read).length;
 
   return (
     <div className="p-6">
@@ -180,14 +261,14 @@ const Notifications: React.FC = () => {
               Tienes {unreadCount} notificaciones sin leer
             </p>
             {unreadCount > 0 && (
-              <Button variant="default" size="sm">
+              <Button variant="default" size="sm" onClick={handleMarkAllAsRead}>
                 Marcar todas como leídas
               </Button>
             )}
           </div>
 
           <div className="space-y-4">
-            {notifications.map((notification) => (
+            {allNotifications.map((notification) => (
               <Card 
                 key={notification.id} 
                 className={`transition-all duration-200 hover:shadow-md ${getTypeBackground(notification.type)} ${
@@ -198,7 +279,10 @@ const Notifications: React.FC = () => {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1">
                       <div className="mt-0.5">
-                        <notification.icon className="h-5 w-5 text-foreground" />
+                        {(() => {
+                          const IconComponent = getIconComponent(notification.icon);
+                          return <IconComponent className="h-5 w-5 text-foreground" />;
+                        })()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -237,6 +321,7 @@ const Notifications: React.FC = () => {
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       aria-label="Eliminar notificación"
+                      onClick={() => handleDeleteNotification(notification.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -247,7 +332,7 @@ const Notifications: React.FC = () => {
           </div>
 
           {/* Empty State */}
-          {notifications.length === 0 && (
+          {allNotifications.length === 0 && (
             <Card className="text-center py-12">
               <CardContent>
                 <div className="mx-auto w-16 h-16 bg-secondary/50 rounded-full flex items-center justify-center mb-4">
