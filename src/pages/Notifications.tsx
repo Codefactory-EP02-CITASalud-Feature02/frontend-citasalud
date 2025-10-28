@@ -1,67 +1,85 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { 
   Bell, 
   Calendar, 
   AlertCircle, 
   CheckCircle, 
   Info,
-  Trash2
+  Trash2,
+  Settings,
+  Mail,
+  MessageSquare
 } from 'lucide-react';
 
 const Notifications: React.FC = () => {
+  const [emailReminders, setEmailReminders] = useState(true);
+  const [smsReminders, setSmsReminders] = useState(true);
+  const [systemNotifications, setSystemNotifications] = useState(true);
+  const [appointmentReminders, setAppointmentReminders] = useState(true);
+  const [resultNotifications, setResultNotifications] = useState(true);
+
   const notifications = [
     {
       id: '1',
       title: 'Recordatorio de Cita',
-      message: 'Su cita de Radiografía de Tórax con Dr. Ana Martínez está programada para mañana a las 10:00 AM.',
+      message: 'Su cita de Radiografía de Tórax es mañana a las 10:00 AM en Sede Norte',
       type: 'reminder',
       priority: 'high',
-      time: '2 horas',
+      time: '2025-01-14 • 09:00',
       read: false,
-      icon: Calendar
+      icon: AlertCircle,
+      sentVia: 'Email y SMS'
     },
     {
       id: '2',
+      title: 'Cita Confirmada',
+      message: 'Su cita de Control Cardiológico ha sido confirmada para el 08 de octubre a las 2:30 PM',
+      type: 'confirmation',
+      priority: 'medium',
+      time: '2025-10-08 • 14:30',
+      read: false,
+      icon: Calendar,
+      sentVia: 'Email'
+    },
+    {
+      id: '3',
+      title: 'Cita Cancelada',
+      message: 'Su cita de Consulta Especializada del 5 de diciembre ha sido cancelada. Motivo: Conflicto de horarios. Se ha notificado al centro médico.',
+      type: 'cancelled',
+      priority: 'medium',
+      time: '2024-12-03 • 14:30',
+      read: false,
+      icon: AlertCircle,
+      sentVia: 'Email y SMS'
+    },
+    {
+      id: '4',
       title: 'Resultados Disponibles',
       message: 'Los resultados de su examen de sangre ya están disponibles para descarga.',
       type: 'results',
       priority: 'medium',
       time: '1 día',
-      read: false,
-      icon: CheckCircle
-    },
-    {
-      id: '3',
-      title: 'Cita Reprogramada',
-      message: 'Su cita del 25 de enero ha sido reprogramada para el 28 de enero a la misma hora.',
-      type: 'update',
-      priority: 'high',
-      time: '2 días',
       read: true,
-      icon: AlertCircle
-    },
-    {
-      id: '4',
-      title: 'Recordatorio de Medicamento',
-      message: 'No olvide tomar su medicamento para la presión arterial hoy a las 8:00 AM.',
-      type: 'medication',
-      priority: 'medium',
-      time: '3 días',
-      read: true,
-      icon: Info
+      icon: CheckCircle,
+      sentVia: 'Email'
     },
     {
       id: '5',
-      title: 'Confirmación de Cita',
-      message: 'Su cita de Control Cardiológico ha sido confirmada para el 25 de enero a las 2:30 PM.',
-      type: 'confirmation',
+      title: 'Recordatorio Enviado',
+      message: 'Se envió un recordatorio automático 24 horas antes de su cita de Ecografía programada para el 27/10/2025 a las 08:00.',
+      type: 'system',
       priority: 'low',
-      time: '5 días',
+      time: '2 días',
       read: true,
-      icon: CheckCircle
+      icon: Info,
+      sentVia: 'Sistema'
     }
   ];
 
@@ -94,17 +112,34 @@ const Notifications: React.FC = () => {
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'reminder':
-        return 'medical-orange';
+        return 'destructive';
       case 'results':
-        return 'medical-green';
-      case 'update':
-        return 'medical-blue';
-      case 'medication':
-        return 'medical-purple';
+        return 'default';
       case 'confirmation':
-        return 'medical-green';
+        return 'default';
+      case 'cancelled':
+        return 'default';
+      case 'system':
+        return 'secondary';
       default:
         return 'secondary';
+    }
+  };
+
+  const getTypeBackground = (type: string) => {
+    switch (type) {
+      case 'reminder':
+        return 'bg-red-50 border-red-200';
+      case 'confirmation':
+        return 'bg-yellow-50 border-yellow-200';
+      case 'cancelled':
+        return 'bg-yellow-50 border-yellow-200';
+      case 'results':
+        return 'bg-blue-50 border-blue-200';
+      case 'system':
+        return 'bg-gray-50 border-gray-200';
+      default:
+        return '';
     }
   };
 
@@ -112,121 +147,232 @@ const Notifications: React.FC = () => {
 
   return (
     <div className="p-6">
-      <header className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">
-              Notificaciones
-            </h1>
-            <p className="text-muted-foreground">
-              Mantenga un seguimiento de sus mensajes y recordatorios médicos.
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            {unreadCount > 0 && (
-              <Badge variant="destructive" className="text-sm">
-                {unreadCount} nuevas
-              </Badge>
-            )}
-            <Button variant="outline" size="sm">
-              Marcar todas como leídas
-            </Button>
-          </div>
-        </div>
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold text-foreground mb-2">
+          Notificaciones
+        </h1>
+        <p className="text-muted-foreground">
+          Mantenga al día sus recordatorios y mensajes del sistema.
+        </p>
       </header>
 
-      <div className="space-y-4">
-        {notifications.map((notification) => (
-          <Card 
-            key={notification.id} 
-            className={`transition-all duration-200 hover:shadow-md ${
-              !notification.read ? 'border-l-4 border-l-primary bg-primary/5' : ''
-            }`}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4">
-                  <div className={`w-10 h-10 rounded-lg bg-${getTypeColor(notification.type)}/10 flex items-center justify-center`}>
-                    <notification.icon className={`h-5 w-5 text-${getTypeColor(notification.type)}`} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <CardTitle className="text-base">
-                        {notification.title}
-                      </CardTitle>
-                      {!notification.read && (
-                        <div className="w-2 h-2 bg-primary rounded-full" />
-                      )}
+      <Tabs defaultValue="notifications" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Notificaciones
+            {unreadCount > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center">
+                {unreadCount}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="config" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Configuración
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Tab de Notificaciones */}
+        <TabsContent value="notifications" className="space-y-4">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-muted-foreground">
+              Tienes {unreadCount} notificaciones sin leer
+            </p>
+            {unreadCount > 0 && (
+              <Button variant="default" size="sm">
+                Marcar todas como leídas
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {notifications.map((notification) => (
+              <Card 
+                key={notification.id} 
+                className={`transition-all duration-200 hover:shadow-md ${getTypeBackground(notification.type)} ${
+                  !notification.read ? 'border-l-4 border-l-primary' : ''
+                }`}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="mt-0.5">
+                        <notification.icon className="h-5 w-5 text-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-sm text-foreground">
+                            {notification.title}
+                          </h3>
+                          {!notification.read && (
+                            <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-sm text-foreground/80 leading-relaxed">
+                          {notification.message}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-muted-foreground">
+                            {notification.time}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <CardDescription className="text-sm leading-relaxed">
-                      {notification.message}
-                    </CardDescription>
+                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                      <Badge 
+                        variant={getTypeColor(notification.type) as any}
+                        className="text-xs whitespace-nowrap"
+                      >
+                        {getPriorityText(notification.priority)}
+                      </Badge>
+                    </div>
                   </div>
+                </CardHeader>
+                
+                <CardContent className="pt-0 pb-4">
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      aria-label="Eliminar notificación"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Empty State */}
+          {notifications.length === 0 && (
+            <Card className="text-center py-12">
+              <CardContent>
+                <div className="mx-auto w-16 h-16 bg-secondary/50 rounded-full flex items-center justify-center mb-4">
+                  <Bell className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <div className="flex items-center gap-2 ml-4">
-                  <Badge 
-                    variant="outline"
-                    className={`text-xs bg-${getPriorityColor(notification.priority)}/10 text-${getPriorityColor(notification.priority)} border-${getPriorityColor(notification.priority)}/20`}
-                  >
-                    {getPriorityText(notification.priority)}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    Hace {notification.time}
-                  </span>
-                </div>
-              </div>
+                <CardTitle className="mb-2">No hay notificaciones</CardTitle>
+                <CardDescription>
+                  Cuando reciba nuevas notificaciones, aparecerán aquí.
+                </CardDescription>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Tab de Configuración */}
+        <TabsContent value="config" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuración de Notificaciones</CardTitle>
+              <CardDescription>
+                Personalice cómo y cuándo recibir notificaciones
+              </CardDescription>
             </CardHeader>
-            
-            <CardContent className="pt-0">
+            <CardContent className="space-y-6">
+              {/* Recordatorios por Email */}
               <div className="flex items-center justify-between">
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs"
-                  >
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    {notification.read ? 'Marcar como no leída' : 'Marcar como leída'}
-                  </Button>
-                  {notification.type === 'results' && (
-                    <Button variant="ghost" size="sm" className="h-8 text-xs">
-                      Ver resultados
-                    </Button>
-                  )}
-                  {notification.type === 'reminder' && (
-                    <Button variant="ghost" size="sm" className="h-8 text-xs">
-                      Ver cita
-                    </Button>
-                  )}
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="email-reminders" className="text-base font-semibold flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Recordatorios por Email
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Reciba recordatorios de citas y resultados por correo electrónico
+                  </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Eliminar notificación</span>
-                </Button>
+                <Switch
+                  id="email-reminders"
+                  checked={emailReminders}
+                  onCheckedChange={setEmailReminders}
+                />
+              </div>
+              
+              <Separator />
+
+              {/* Recordatorios por SMS */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="sms-reminders" className="text-base font-semibold flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Recordatorios por SMS
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Reciba mensajes de texto para recordatorios importantes
+                  </p>
+                </div>
+                <Switch
+                  id="sms-reminders"
+                  checked={smsReminders}
+                  onCheckedChange={setSmsReminders}
+                />
+              </div>
+
+              <Separator />
+
+              {/* Notificaciones del Sistema */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="system-notifications" className="text-base font-semibold flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Notificaciones del Sistema
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Reciba actualizaciones sobre mantenimiento y cambios del sistema
+                  </p>
+                </div>
+                <Switch
+                  id="system-notifications"
+                  checked={systemNotifications}
+                  onCheckedChange={setSystemNotifications}
+                />
+              </div>
+
+              <Separator />
+
+              {/* Recordatorios de Citas */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="appointment-reminders" className="text-base font-semibold flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Recordatorios de Citas
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Reciba recordatorios 24 horas antes de sus citas
+                  </p>
+                </div>
+                <Switch
+                  id="appointment-reminders"
+                  checked={appointmentReminders}
+                  onCheckedChange={setAppointmentReminders}
+                />
+              </div>
+
+              <Separator />
+
+              {/* Notificaciones de Resultados */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="result-notifications" className="text-base font-semibold flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Notificaciones de Resultados
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Reciba alertas cuando sus resultados estén disponibles
+                  </p>
+                </div>
+                <Switch
+                  id="result-notifications"
+                  checked={resultNotifications}
+                  onCheckedChange={setResultNotifications}
+                />
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
-
-      {/* Empty State */}
-      {notifications.length === 0 && (
-        <Card className="text-center py-12">
-          <CardContent>
-            <div className="mx-auto w-16 h-16 bg-secondary/50 rounded-full flex items-center justify-center mb-4">
-              <Bell className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <CardTitle className="mb-2">No hay notificaciones</CardTitle>
-            <CardDescription>
-              Cuando reciba nuevas notificaciones, aparecerán aquí.
-            </CardDescription>
-          </CardContent>
-        </Card>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
