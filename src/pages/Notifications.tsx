@@ -38,40 +38,10 @@ const Notifications: React.FC = () => {
   const [appointmentReminders, setAppointmentReminders] = useState(true);
   const [resultNotifications, setResultNotifications] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [sampleNotifications, setSampleNotifications] = useState<NotificationItem[]>([]);
   const { toast } = useToast();
 
-  // Load notifications from localStorage
-  useEffect(() => {
-    const loadNotifications = () => {
-      const stored = localStorage.getItem('medical-app-notifications');
-      if (stored) {
-        try {
-          setNotifications(JSON.parse(stored));
-        } catch (error) {
-          console.error('Error loading notifications:', error);
-        }
-      }
-    };
-    
-    loadNotifications();
-    
-    // Listen for storage changes (when notifications are added)
-    const handleStorageChange = () => {
-      loadNotifications();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also check periodically in case localStorage was updated in the same tab
-    const interval = setInterval(loadNotifications, 1000);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
-  }, []);
-
-  const sampleNotifications: NotificationItem[] = [
+  const initialSampleNotifications: NotificationItem[] = [
     {
       id: '1',
       title: 'Recordatorio de Cita',
@@ -128,6 +98,52 @@ const Notifications: React.FC = () => {
       sentVia: 'Sistema'
     }
   ];
+
+  // Load notifications from localStorage
+  useEffect(() => {
+    const loadNotifications = () => {
+      const stored = localStorage.getItem('medical-app-notifications');
+      if (stored) {
+        try {
+          setNotifications(JSON.parse(stored));
+        } catch (error) {
+          console.error('Error loading notifications:', error);
+        }
+      }
+
+      // Load or initialize sample notifications
+      const storedSamples = localStorage.getItem('medical-app-sample-notifications');
+      if (storedSamples) {
+        try {
+          setSampleNotifications(JSON.parse(storedSamples));
+        } catch (error) {
+          console.error('Error loading sample notifications:', error);
+          setSampleNotifications(initialSampleNotifications);
+          localStorage.setItem('medical-app-sample-notifications', JSON.stringify(initialSampleNotifications));
+        }
+      } else {
+        setSampleNotifications(initialSampleNotifications);
+        localStorage.setItem('medical-app-sample-notifications', JSON.stringify(initialSampleNotifications));
+      }
+    };
+    
+    loadNotifications();
+    
+    // Listen for storage changes (when notifications are added)
+    const handleStorageChange = () => {
+      loadNotifications();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically in case localStorage was updated in the same tab
+    const interval = setInterval(loadNotifications, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   const getIconComponent = (iconName: string) => {
     const icons: Record<string, React.ComponentType<any>> = {
@@ -201,9 +217,18 @@ const Notifications: React.FC = () => {
   };
 
   const handleDeleteNotification = (id: string) => {
-    const updated = notifications.filter(n => n.id !== id);
-    setNotifications(updated);
-    localStorage.setItem('medical-app-notifications', JSON.stringify(updated));
+    // Check if it's a real notification or sample
+    const isRealNotification = notifications.some(n => n.id === id);
+    
+    if (isRealNotification) {
+      const updated = notifications.filter(n => n.id !== id);
+      setNotifications(updated);
+      localStorage.setItem('medical-app-notifications', JSON.stringify(updated));
+    } else {
+      const updated = sampleNotifications.filter(n => n.id !== id);
+      setSampleNotifications(updated);
+      localStorage.setItem('medical-app-sample-notifications', JSON.stringify(updated));
+    }
     
     toast({
       title: "Notificación eliminada",
@@ -211,10 +236,29 @@ const Notifications: React.FC = () => {
     });
   };
 
+  const handleMarkAsRead = (id: string) => {
+    // Check if it's a real notification or sample
+    const isRealNotification = notifications.some(n => n.id === id);
+    
+    if (isRealNotification) {
+      const updated = notifications.map(n => (n.id === id ? { ...n, read: true } : n));
+      setNotifications(updated);
+      localStorage.setItem('medical-app-notifications', JSON.stringify(updated));
+    } else {
+      const updated = sampleNotifications.map(n => (n.id === id ? { ...n, read: true } : n));
+      setSampleNotifications(updated);
+      localStorage.setItem('medical-app-sample-notifications', JSON.stringify(updated));
+    }
+  };
+
   const handleMarkAllAsRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
-    localStorage.setItem('medical-app-notifications', JSON.stringify(updated));
+    const updatedReal = notifications.map(n => ({ ...n, read: true }));
+    setNotifications(updatedReal);
+    localStorage.setItem('medical-app-notifications', JSON.stringify(updatedReal));
+
+    const updatedSamples = sampleNotifications.map(n => ({ ...n, read: true }));
+    setSampleNotifications(updatedSamples);
+    localStorage.setItem('medical-app-sample-notifications', JSON.stringify(updatedSamples));
     
     toast({
       title: "Notificaciones actualizadas",
@@ -284,7 +328,10 @@ const Notifications: React.FC = () => {
                           return <IconComponent className="h-5 w-5 text-foreground" />;
                         })()}
                       </div>
-                      <div className="flex-1 min-w-0">
+                       <div 
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => !notification.read && handleMarkAsRead(notification.id)}
+                      >
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-semibold text-sm text-foreground">
                             {notification.title}

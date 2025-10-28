@@ -78,6 +78,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = (): void => {
     setUser(null);
     setError(null);
+    // Reset notifications to initial state
+    localStorage.removeItem('medical-app-sample-notifications');
   };
 
   const clearError = (): void => {
