@@ -3,12 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
-import { CalendarIcon, MapPinIcon, ClockIcon, CheckCircle2, CircleIcon } from 'lucide-react';
+import { CalendarIcon, MapPinIcon, ClockIcon, CheckCircle2, CircleIcon, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { useResourceBlocks } from '@/hooks/useResourceBlocks';
 
 interface BookingData {
   date: Date | undefined;
@@ -31,6 +32,7 @@ const PatientBookingFlow: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { isResourceBlocked } = useResourceBlocks();
 
   const steps = [
     { id: 1, title: 'Fecha', label: 'Fecha' },
@@ -297,19 +299,64 @@ const PatientBookingFlow: React.FC = () => {
                 {/* Time Selection */}
                 <div>
                   <h3 className="font-medium mb-3">Hora</h3>
-                  <div className="grid grid-cols-4 gap-3">
-                    {timeSlots.map((time) => (
-                      <Button
-                        key={time}
-                        variant={bookingData.time === time ? "default" : "outline"}
-                        className="w-full"
-                        onClick={() => handleTimeSelect(time)}
-                      >
-                        <ClockIcon className="h-4 w-4 mr-1" />
-                        {time}
-                      </Button>
-                    ))}
-                  </div>
+                  {bookingData.date && bookingData.specificExam && (
+                    <div className="grid grid-cols-4 gap-3">
+                      {timeSlots.map((time) => {
+                        // Map exam to resource
+                        const resourceMap: Record<string, string> = {
+                          'Radiografía': 'sala-rayos-x-1',
+                          'Tomografía': 'tomografo',
+                          'Resonancia Magnética': 'resonancia-magnetica',
+                          'Ecografía': 'ecografo-principal',
+                          'Electrocardiograma': 'laboratorio-clinico',
+                          'Ecocardiograma': 'laboratorio-clinico',
+                          'Prueba de Esfuerzo': 'laboratorio-clinico',
+                          'Holter': 'laboratorio-clinico',
+                          'Hemograma Completo': 'laboratorio-clinico',
+                          'Química Sanguínea': 'laboratorio-clinico',
+                          'Perfil Lipídico': 'laboratorio-clinico',
+                          'Uroanálisis': 'laboratorio-clinico',
+                        };
+                        
+                        const resource = resourceMap[bookingData.specificExam];
+                        const dateStr = format(bookingData.date, 'yyyy-MM-dd');
+                        const isBlocked = resource && isResourceBlocked(resource, dateStr, time);
+                        
+                        return (
+                          <div key={time} className="relative">
+                            <Button
+                              variant={bookingData.time === time ? "default" : "outline"}
+                              className="w-full"
+                              onClick={() => !isBlocked && handleTimeSelect(time)}
+                              disabled={isBlocked}
+                            >
+                              {isBlocked ? (
+                                <>
+                                  <Lock className="h-4 w-4 mr-1" />
+                                  {time}
+                                </>
+                              ) : (
+                                <>
+                                  <ClockIcon className="h-4 w-4 mr-1" />
+                                  {time}
+                                </>
+                              )}
+                            </Button>
+                            {isBlocked && (
+                              <span className="absolute -bottom-5 left-0 text-xs text-destructive">
+                                mantenimiento
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {(!bookingData.date || !bookingData.specificExam) && (
+                    <p className="text-sm text-muted-foreground">
+                      Seleccione un examen específico para ver horarios disponibles
+                    </p>
+                  )}
                 </div>
 
                 {/* Booking Summary */}
