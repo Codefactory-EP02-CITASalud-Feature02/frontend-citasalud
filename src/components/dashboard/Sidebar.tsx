@@ -7,6 +7,7 @@ import {
   History, 
   Bell, 
   User,
+  Lock,
   LogOut
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,11 +18,12 @@ const navigation = [
   { name: 'Agendar Citas', href: '/dashboard/schedule', icon: Calendar, requiresScheduling: true },
   { name: 'Historial', href: '/dashboard/history', icon: History },
   { name: 'Notificaciones', href: '/dashboard/notifications', icon: Bell },
+  { name: 'Bloqueos de Recursos', href: '/dashboard/resource-blocks', icon: Lock, requiresAdmin: true },
   { name: 'Perfil', href: '/dashboard/profile', icon: User },
 ];
 
 const Sidebar: React.FC = () => {
-  const { logout, hasSchedulingAccess } = useAuth();
+  const { logout, hasSchedulingAccess, user } = useAuth();
 
   return (
     <div className="w-64 bg-secondary min-h-screen flex flex-col border-r border-border">
@@ -34,6 +36,11 @@ const Sidebar: React.FC = () => {
           {navigation.map((item) => {
             // Skip scheduling link if user doesn't have access
             if (item.requiresScheduling && !hasSchedulingAccess) {
+              return null;
+            }
+
+            // Skip admin-only links if user is not admin
+            if (item.requiresAdmin && user?.role !== 'admin') {
               return null;
             }
 
