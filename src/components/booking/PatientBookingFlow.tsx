@@ -343,7 +343,7 @@ const PatientBookingFlow: React.FC = () => {
                               )}
                             </Button>
                             {isBlocked && (
-                              <span className="absolute -bottom-5 left-0 text-xs text-destructive">
+                              <span className="absolute -bottom-6 left-0 right-0 text-xs font-medium text-destructive bg-destructive/10 px-1 py-0.5 rounded text-center">
                                 mantenimiento
                               </span>
                             )}
