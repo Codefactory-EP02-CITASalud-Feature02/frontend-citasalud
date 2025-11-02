@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { parseLocalDate } from '@/lib/utils';
 
 export interface ResourceBlock {
   id: string;
@@ -59,22 +60,25 @@ export const useResourceBlocks = () => {
   };
 
   const isResourceBlocked = (resource: string, date: string, time: string): boolean => {
-    const checkDate = new Date(`${date}T${time}`);
+    const checkDateTime = new Date(`${date}T${time}`);
+    const checkDate = parseLocalDate(date);
     
     return blocks.some(block => {
       if (!block.resources.includes(resource)) return false;
 
-      const blockStart = new Date(`${block.startDate}T${block.startTime}`);
-      const blockEnd = new Date(`${block.endDate}T${block.endTime}`);
+      const blockStart = parseLocalDate(block.startDate);
+      const blockEnd = parseLocalDate(block.endDate);
+      const blockStartDateTime = new Date(`${block.startDate}T${block.startTime}`);
+      const blockEndDateTime = new Date(`${block.endDate}T${block.endTime}`);
 
       // Check if date falls within block period
-      if (checkDate >= blockStart && checkDate <= blockEnd) {
+      if (checkDateTime >= blockStartDateTime && checkDateTime <= blockEndDateTime) {
         return true;
       }
 
       // Check recurrence
       if (block.recurrence !== 'none' && block.recurrenceEndDate) {
-        const recurrenceEnd = new Date(block.recurrenceEndDate);
+        const recurrenceEnd = parseLocalDate(block.recurrenceEndDate);
         if (checkDate > recurrenceEnd) return false;
 
         if (block.recurrence === 'weekly') {
@@ -98,10 +102,10 @@ export const useResourceBlocks = () => {
 
   const getBlocksForDateRange = (startDate: string, endDate: string) => {
     return blocks.filter(block => {
-      const blockStart = new Date(block.startDate);
-      const blockEnd = new Date(block.endDate);
-      const rangeStart = new Date(startDate);
-      const rangeEnd = new Date(endDate);
+      const blockStart = parseLocalDate(block.startDate);
+      const blockEnd = parseLocalDate(block.endDate);
+      const rangeStart = parseLocalDate(startDate);
+      const rangeEnd = parseLocalDate(endDate);
 
       return (
         (blockStart >= rangeStart && blockStart <= rangeEnd) ||

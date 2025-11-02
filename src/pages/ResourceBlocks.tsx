@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { parseLocalDate } from '@/lib/utils';
 
 // Available resources
 const AVAILABLE_RESOURCES = [
@@ -235,10 +236,15 @@ const ResourceBlocks: React.FC = () => {
 
   const getBlocksForDay = (day: Date) => {
     const dayStr = format(day, 'yyyy-MM-dd');
+    // Reset time to start of day for comparison
+    const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    
     return blocks.filter(block => {
-      const blockStart = new Date(block.startDate);
-      const blockEnd = new Date(block.endDate);
-      return day >= blockStart && day <= blockEnd;
+      const blockStart = parseLocalDate(block.startDate);
+      const blockEnd = parseLocalDate(block.endDate);
+      // Set to end of day for inclusive comparison
+      blockEnd.setHours(23, 59, 59, 999);
+      return dayStart >= blockStart && dayStart <= blockEnd;
     });
   };
 
