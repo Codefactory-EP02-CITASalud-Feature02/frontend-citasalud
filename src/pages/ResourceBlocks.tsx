@@ -571,7 +571,7 @@ const ResourceBlocks: React.FC = () => {
                 <Input
                   type="date"
                   value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
+                  onChange={(e) => setStartDate(e.target.value ? parseLocalDate(e.target.value) : undefined)}
                 />
               </div>
               <div className="space-y-2">
@@ -579,7 +579,7 @@ const ResourceBlocks: React.FC = () => {
                 <Input
                   type="date"
                   value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
+                  onChange={(e) => setEndDate(e.target.value ? parseLocalDate(e.target.value) : undefined)}
                 />
               </div>
             </div>
@@ -637,10 +637,10 @@ const ResourceBlocks: React.FC = () => {
                 <div className="space-y-2">
                   <Label>Fecha de Fin de Recurrencia *</Label>
                   <Input
-                    type="date"
-                    value={recurrenceEndDate ? format(recurrenceEndDate, 'yyyy-MM-dd') : ''}
-                    onChange={(e) => setRecurrenceEndDate(e.target.value ? new Date(e.target.value) : undefined)}
-                  />
+                     type="date"
+                     value={recurrenceEndDate ? format(recurrenceEndDate, 'yyyy-MM-dd') : ''}
+                     onChange={(e) => setRecurrenceEndDate(e.target.value ? parseLocalDate(e.target.value) : undefined)}
+                   />
                 </div>
               )}
             </div>
