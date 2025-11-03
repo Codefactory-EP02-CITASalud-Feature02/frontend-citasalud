@@ -63,6 +63,16 @@ const AVAILABLE_RESOURCES = [
   { id: 'laboratorio-clinico', name: 'Laboratorio Clínico', type: 'Sala' },
 ];
 
+// Map resources to their primary exam for display purposes
+const RESOURCE_TO_EXAM: Record<string, string> = {
+  'ecografo-principal': 'Ecografía',
+  'resonancia-magnetica': 'Resonancia Magnética',
+  'tomografo': 'Tomografía',
+  'sala-rayos-x-1': 'Radiografía',
+  'sala-rayos-x-2': 'Radiografía',
+  'laboratorio-clinico': 'Laboratorio',
+};
+
 const ResourceBlocks: React.FC = () => {
   const { user } = useAuth();
   const { blocks, addBlock, removeBlock, getBlocksForDateRange } = useResourceBlocks();
@@ -238,16 +248,38 @@ const ResourceBlocks: React.FC = () => {
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const getBlocksForDay = (day: Date) => {
-    const dayStr = format(day, 'yyyy-MM-dd');
-    // Reset time to start of day for comparison
     const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-    
-    return blocks.filter(block => {
+
+    const inBaseRange = (blockStart: Date, blockEnd: Date) => {
+      const endOfDay = new Date(dayStart);
+      endOfDay.setHours(23, 59, 59, 999);
+      return dayStart >= blockStart && dayStart <= endOfDay && endOfDay <= new Date(blockEnd.getFullYear(), blockEnd.getMonth(), blockEnd.getDate(), 23, 59, 59, 999);
+    };
+
+    return blocks.filter((block) => {
+      // Apply resource filter
+      if (resourceFilter !== 'all' && !block.resources.includes(resourceFilter)) return false;
+
       const blockStart = parseLocalDate(block.startDate);
       const blockEnd = parseLocalDate(block.endDate);
-      // Set to end of day for inclusive comparison
-      blockEnd.setHours(23, 59, 59, 999);
-      return dayStart >= blockStart && dayStart <= blockEnd;
+
+      // Match non-recurrent range
+      if (inBaseRange(blockStart, blockEnd)) return true;
+
+      // Handle recurrence visualization
+      if (block.recurrence !== 'none' && block.recurrenceEndDate) {
+        const recurrenceEnd = parseLocalDate(block.recurrenceEndDate);
+        if (dayStart < blockStart || dayStart > recurrenceEnd) return false;
+
+        if (block.recurrence === 'weekly') {
+          return dayStart.getDay() === blockStart.getDay();
+        }
+        if (block.recurrence === 'monthly') {
+          return dayStart.getDate() === blockStart.getDate();
+        }
+      }
+
+      return false;
     });
   };
 
