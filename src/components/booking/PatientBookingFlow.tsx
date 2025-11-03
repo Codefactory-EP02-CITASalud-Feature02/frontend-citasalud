@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 import { useResourceBlocks } from '@/hooks/useResourceBlocks';
+import { useAppointments } from '@/hooks/useAppointments';
 
 interface BookingData {
   date: Date | undefined;
@@ -33,6 +34,7 @@ const PatientBookingFlow: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { isResourceBlocked } = useResourceBlocks();
+  const { addAppointment } = useAppointments();
 
   const steps = [
     { id: 1, title: 'Fecha', label: 'Fecha' },
@@ -117,10 +119,27 @@ const PatientBookingFlow: React.FC = () => {
   };
 
   const handleConfirmBooking = () => {
+    if (!bookingData.date || !user) return;
+
+    // Calculate end time (1 hour after start)
+    const startHour = parseInt(bookingData.time.split(':')[0]);
+    const endTime = `${String(startHour + 1).padStart(2, '0')}:00`;
+
+    // Save appointment to system
+    const locationName = locations.find(l => l.id === bookingData.location)?.name || bookingData.location;
+    addAppointment({
+      patientName: user.name,
+      examType: bookingData.specificExam,
+      date: format(bookingData.date, 'yyyy-MM-dd'),
+      startTime: bookingData.time,
+      endTime: endTime,
+      location: locationName,
+    });
+
     // Add notification to localStorage
     const notification = {
       title: 'Cita Confirmada',
-      message: `Su cita de ${bookingData.specificExam} ha sido confirmada para el ${bookingData.date && format(bookingData.date, "dd/MM/yyyy", { locale: es })} a las ${bookingData.time} en ${locations.find(l => l.id === bookingData.location)?.name}`,
+      message: `Su cita de ${bookingData.specificExam} ha sido confirmada para el ${format(bookingData.date, "dd/MM/yyyy", { locale: es })} a las ${bookingData.time} en ${locationName}`,
       type: 'confirmation' as const,
       priority: 'high' as const,
       icon: 'Calendar',

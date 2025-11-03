@@ -24,10 +24,16 @@ import {
   Alert,
   AlertDescription,
 } from '@/components/ui/alert';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useResourceBlocks } from '@/hooks/useResourceBlocks';
+import { useAppointments } from '@/hooks/useAppointments';
 import { toast } from '@/hooks/use-toast';
 import { 
   Calendar as CalendarIcon,
@@ -40,6 +46,8 @@ import {
   Info,
   Trash2,
   Filter,
+  User,
+  Clock,
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -58,6 +66,7 @@ const AVAILABLE_RESOURCES = [
 const ResourceBlocks: React.FC = () => {
   const { user } = useAuth();
   const { blocks, addBlock, removeBlock, getBlocksForDateRange } = useResourceBlocks();
+  const { appointments, getAppointmentsForDate } = useAppointments();
   
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -74,6 +83,7 @@ const ResourceBlocks: React.FC = () => {
   const [reason, setReason] = useState('');
   const [recurrence, setRecurrence] = useState<'none' | 'weekly' | 'monthly'>('none');
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | undefined>();
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   // Check admin access
   if (user?.role !== 'admin') {
@@ -106,13 +116,6 @@ const ResourceBlocks: React.FC = () => {
     );
   }
 
-  // Sample appointments data (would come from real data)
-  const sampleAppointments = [
-    { id: '1', date: '2025-10-30', time: '09:00', patient: 'María García', resource: 'ecografo-principal' },
-    { id: '2', date: '2025-10-30', time: '14:00', patient: 'Carlos Rodríguez', resource: 'ecografo-principal' },
-    { id: '3', date: '2025-10-29', time: '10:00', patient: 'Ana Martínez', resource: 'resonancia-magnetica' },
-    { id: '4', date: '2025-10-30', time: '11:00', patient: 'Pedro López', resource: 'sala-rayos-x-1' },
-  ];
 
   const handleToggleResource = (resourceId: string) => {
     setSelectedResources(prev =>
@@ -250,7 +253,7 @@ const ResourceBlocks: React.FC = () => {
 
   const getAppointmentsForDay = (day: Date) => {
     const dayStr = format(day, 'yyyy-MM-dd');
-    return sampleAppointments.filter(apt => apt.date === dayStr);
+    return getAppointmentsForDate(dayStr);
   };
 
   const filteredBlocks = useMemo(() => {
@@ -401,14 +404,20 @@ const ResourceBlocks: React.FC = () => {
                     const dayBlocks = getBlocksForDay(day);
                     const dayAppointments = getAppointmentsForDay(day);
                     const isToday = isSameDay(day, new Date());
+                    const dayStr = format(day, 'yyyy-MM-dd');
 
                     const showBlocks = viewFilter === 'all' || viewFilter === 'blocks';
                     const showAppointments = viewFilter === 'all' || viewFilter === 'appointments';
 
+                    const displayBlocks = showBlocks ? dayBlocks : [];
+                    const displayAppointments = showAppointments ? dayAppointments : [];
+                    const totalItems = displayBlocks.length + displayAppointments.length;
+                    const maxVisible = 2;
+
                     return (
                       <div
                         key={day.toISOString()}
-                        className={`min-h-[120px] p-2 border-r border-b last:border-r-0 ${
+                        className={`min-h-[160px] p-2 border-r border-b last:border-r-0 ${
                           isToday ? 'bg-primary/5 border-primary/20' : ''
                         }`}
                       >
@@ -417,32 +426,112 @@ const ResourceBlocks: React.FC = () => {
                         </div>
 
                         <div className="space-y-1">
-                          {showBlocks && dayBlocks.slice(0, 2).map((block) => (
-                            <div
-                              key={block.id}
-                              className="text-xs p-1 rounded bg-destructive/20 border border-destructive/40 flex items-start gap-1"
-                            >
-                              <Lock className="h-3 w-3 text-destructive flex-shrink-0 mt-0.5" />
-                              <span className="line-clamp-2 text-destructive">
-                                {AVAILABLE_RESOURCES.find(r => r.id === block.resources[0])?.name || 'Recurso'}
-                              </span>
-                            </div>
-                          ))}
+                          {/* Show blocks */}
+                          {displayBlocks.slice(0, maxVisible).map((block) => {
+                            const resourceName = AVAILABLE_RESOURCES.find(r => r.id === block.resources[0])?.name || 'Recurso';
+                            return (
+                              <div
+                                key={block.id}
+                                className="text-xs p-1.5 rounded bg-destructive/20 border border-destructive/40"
+                              >
+                                <div className="flex items-center gap-1 mb-0.5">
+                                  <Lock className="h-3 w-3 text-destructive flex-shrink-0" />
+                                  <span className="font-medium text-destructive line-clamp-1">
+                                    {resourceName}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-destructive/80 flex items-center gap-1">
+                                  <Clock className="h-2.5 w-2.5" />
+                                  {block.startTime} - {block.endTime}
+                                </div>
+                              </div>
+                            );
+                          })}
                           
-                          {showAppointments && dayAppointments.slice(0, 2).map((apt) => (
+                          {/* Show appointments */}
+                          {displayAppointments.slice(0, Math.max(0, maxVisible - displayBlocks.length)).map((apt) => (
                             <div
                               key={apt.id}
-                              className="text-xs p-1 rounded bg-muted border border-border"
+                              className="text-xs p-1.5 rounded bg-muted border border-border"
                             >
-                              <div className="font-medium">{apt.patient}</div>
-                              <div className="text-muted-foreground">{apt.time}</div>
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <User className="h-3 w-3 text-foreground/60 flex-shrink-0" />
+                                <span className="font-medium line-clamp-1">{apt.patientName}</span>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-2.5 w-2.5" />
+                                {apt.startTime} - {apt.endTime}
+                              </div>
                             </div>
                           ))}
 
-                          {(dayBlocks.length + dayAppointments.length) > 2 && (
-                            <div className="text-xs text-muted-foreground text-center">
-                              +{dayBlocks.length + dayAppointments.length - 2} más
-                            </div>
+                          {/* Show more button */}
+                          {totalItems > maxVisible && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full h-6 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  +{totalItems - maxVisible} más
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80" align="start">
+                                <div className="space-y-2">
+                                  <h4 className="font-semibold text-sm mb-3">
+                                    {format(day, 'dd MMMM yyyy', { locale: es })}
+                                  </h4>
+                                  
+                                  {displayBlocks.length > 0 && (
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-medium text-muted-foreground">Bloqueos</p>
+                                      {displayBlocks.map((block) => {
+                                        const resourceName = AVAILABLE_RESOURCES.find(r => r.id === block.resources[0])?.name || 'Recurso';
+                                        return (
+                                          <div
+                                            key={block.id}
+                                            className="p-2 rounded bg-destructive/20 border border-destructive/40"
+                                          >
+                                            <div className="flex items-center gap-1 mb-1">
+                                              <Lock className="h-3 w-3 text-destructive" />
+                                              <span className="text-sm font-medium text-destructive">
+                                                {resourceName}
+                                              </span>
+                                            </div>
+                                            <p className="text-xs text-destructive/80">{block.reason}</p>
+                                            <div className="text-xs text-destructive/70 mt-1">
+                                              {block.startTime} - {block.endTime}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+
+                                  {displayAppointments.length > 0 && (
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-medium text-muted-foreground">Citas Programadas</p>
+                                      {displayAppointments.map((apt) => (
+                                        <div
+                                          key={apt.id}
+                                          className="p-2 rounded bg-muted border border-border"
+                                        >
+                                          <div className="flex items-center gap-1 mb-1">
+                                            <User className="h-3 w-3 text-foreground/60" />
+                                            <span className="text-sm font-medium">{apt.patientName}</span>
+                                          </div>
+                                          <p className="text-xs text-muted-foreground">{apt.examType}</p>
+                                          <div className="text-xs text-muted-foreground mt-1">
+                                            {apt.startTime} - {apt.endTime}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           )}
                         </div>
                       </div>
