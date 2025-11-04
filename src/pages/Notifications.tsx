@@ -41,6 +41,7 @@ const Notifications: React.FC = () => {
   const [sampleNotifications, setSampleNotifications] = useState<NotificationItem[]>([]);
   const { toast } = useToast();
 
+  /*
   const initialSampleNotifications: NotificationItem[] = [
     {
       id: '1',
@@ -98,6 +99,7 @@ const Notifications: React.FC = () => {
       sentVia: 'Sistema'
     }
   ];
+  */
 
   // Load notifications from localStorage
   useEffect(() => {
@@ -111,6 +113,7 @@ const Notifications: React.FC = () => {
         }
       }
 
+      /*
       // Load or initialize sample notifications
       const storedSamples = localStorage.getItem('medical-app-sample-notifications');
       if (storedSamples) {
@@ -125,6 +128,7 @@ const Notifications: React.FC = () => {
         setSampleNotifications(initialSampleNotifications);
         localStorage.setItem('medical-app-sample-notifications', JSON.stringify(initialSampleNotifications));
       }
+      */
     };
     
     loadNotifications();

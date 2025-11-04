@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAppointments, Appointment as RemoteAppointment } from '@/hooks/useAppointments';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
+import { gqlRequest } from '@/lib/graphqlClient';
 import { 
   Calendar, 
   Clock, 
@@ -76,6 +78,17 @@ const History: React.FC = () => {
   const [reasonError, setReasonError] = useState('');
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+
+  // Use backend-backed appointments via the hook
+  const { appointments: remoteAppointments, reloadAppointments } = useAppointments();
+
+  // localOverrides stores UI-only updates like cancellations so the user sees immediate feedback
+  const [localOverrides, setLocalOverrides] = useState<Record<string, Partial<Appointment>>>({});
+
+  /*
+  Mock data (commented out) — kept here as a fallback in case remote loading fails.
+  If you need to re-enable local mocks temporarily, uncomment this block and comment out the
+  `useAppointments` hook usage above.
 
   const [appointmentHistory, setAppointmentHistory] = useState<Appointment[]>([
     {
@@ -184,6 +197,39 @@ const History: React.FC = () => {
     }
   ]);
 
+  */
+
+  // Map remote appointments to the UI's Appointment shape
+  const appointmentHistory: Appointment[] = remoteAppointments.map((r: RemoteAppointment) => {
+    const base: Appointment = {
+      id: r.id,
+      title: r.examType || 'Cita',
+      doctor: '',
+      date: r.date,
+      time: r.startTime || '',
+      location: r.location || '',
+      status: (r.status as Appointment['status']) || 'scheduled',
+      type: 'consultation',
+      icon: Stethoscope,
+      notes: '',
+      documents: [],
+    };
+
+    // assign a more appropriate icon if exam name suggests lab/diagnostic
+    const examLower = (r.examType || '').toLowerCase();
+    if (examLower.includes('lab') || examLower.includes('examen') || examLower.includes('hemograma') || examLower.includes('laboratorio')) {
+      base.icon = TestTube;
+      base.type = 'lab';
+    } else if (examLower.includes('radi') || examLower.includes('tomograf') || examLower.includes('resonancia')) {
+      base.icon = Heart;
+      base.type = 'diagnostic';
+    }
+
+    // merge any local overrides (e.g., cancellation performed in UI)
+    const override = localOverrides[r.id] || {};
+    return { ...base, ...override } as Appointment;
+  });
+
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'completed':
@@ -265,31 +311,101 @@ const History: React.FC = () => {
       return;
     }
 
-    // Update appointment status
-    setAppointmentHistory(prev =>
-      prev.map(apt =>
-        apt.id === cancellingAppointment.id
-          ? {
-              ...apt,
-              status: 'cancelled' as const,
-              cancellationReason: cancellationReason || undefined,
-              cancelledBy: 'Paciente',
-              cancelledAt: new Date().toLocaleString('es-ES')
-            }
-          : apt
-      )
-    );
+    // Update UI immediately
+    setLocalOverrides(prev => ({
+      ...prev,
+      [cancellingAppointment.id]: {
+        ...(prev[cancellingAppointment.id] || {}),
+        status: 'cancelled',
+        cancellationReason: cancellationReason || undefined,
+        cancelledBy: 'Paciente',
+        cancelledAt: new Date().toLocaleString('es-ES')
+      }
+    }));
 
+    // Close dialog while we perform the backend mutation
     setShowCancelDialog(false);
-    
-    // Show success toast
-    toast({
-      title: 'Cita cancelada',
-      description: `Su cita de ${cancellingAppointment.title} del ${cancellingAppointment.date} ha sido cancelada. ${cancellationReason ? 'Motivo: ' + cancellationReason + '.' : ''} Se ha notificado al centro médico.`,
-    });
 
-    setCancellingAppointment(null);
-    setCancellationReason('');
+    (async () => {
+      try {
+        // If there's no auth token, we're in mock/dev mode: persist cancellation locally so it survives navigation
+        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+        if (!token) {
+          const key = 'medical-app-appointments';
+          try {
+            const stored = localStorage.getItem(key);
+            if (stored) {
+              const arr = JSON.parse(stored) as Appointment[];
+              const updated = arr.map(a =>
+                a.id === cancellingAppointment.id
+                  ? { ...a, status: 'cancelled', cancellationReason: cancellationReason || undefined, cancelledBy: 'Paciente', cancelledAt: new Date().toLocaleString('es-ES') }
+                  : a
+              );
+              localStorage.setItem(key, JSON.stringify(updated));
+            } else {
+              // No stored appointments: create a single cancelled record
+              const single: Appointment = {
+                id: cancellingAppointment.id,
+                title: cancellingAppointment.title,
+                doctor: cancellingAppointment.doctor,
+                date: cancellingAppointment.date,
+                time: cancellingAppointment.time,
+                location: cancellingAppointment.location,
+                status: 'cancelled',
+                type: cancellingAppointment.type,
+                icon: cancellingAppointment.icon,
+                notes: cancellingAppointment.notes,
+                documents: cancellingAppointment.documents,
+                cancellationReason: cancellationReason || undefined,
+                cancelledBy: 'Paciente',
+                cancelledAt: new Date().toLocaleString('es-ES')
+              };
+              localStorage.setItem(key, JSON.stringify([single]));
+            }
+          } catch (e) {
+            console.error('Error persisting cancellation locally:', e);
+          }
+
+          toast({
+            title: 'Cita marcada como cancelada (modo local)',
+            description: `La cita ha sido marcada como cancelada localmente.`,
+          });
+
+          // nothing more to do in mock mode
+          setCancellingAppointment(null);
+          setCancellationReason('');
+          return;
+        }
+
+        const mutation = `mutation Cancelar($input: CancelacionInput!) { cancelarExamen(input: $input) { idCita estado motivoCancelacion } }`;
+        const variables = { input: { citaId: Number(cancellingAppointment.id), motivo: cancellationReason } };
+        await gqlRequest(mutation, variables);
+
+        // Refresh from server to get canonical state
+        await reloadAppointments();
+
+        toast({
+          title: 'Cita cancelada',
+          description: `Su cita de ${cancellingAppointment.title} del ${cancellingAppointment.date} ha sido cancelada. ${cancellationReason ? 'Motivo: ' + cancellationReason + '.' : ''} Se ha notificado al centro médico.`,
+        });
+      } catch (err) {
+        console.error('Error cancelling appointment:', err);
+        toast({
+          title: 'Error',
+          description: 'No se pudo cancelar la cita en el servidor. Intente nuevamente.',
+          variant: 'destructive'
+        });
+        // Optionally revert the optimistic UI: remove the local override
+        setLocalOverrides(prev => {
+          const copy = { ...prev };
+          delete copy[cancellingAppointment.id];
+          return copy;
+        });
+      } finally {
+        setCancellingAppointment(null);
+        setCancellationReason('');
+      }
+    })();
   };
 
   const handleViewDetails = (appointment: Appointment) => {
