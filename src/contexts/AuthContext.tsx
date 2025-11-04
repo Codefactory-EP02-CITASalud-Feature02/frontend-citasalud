@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { gqlRequest } from '@/lib/graphqlClient';
 
 interface User {
   id: string;
@@ -72,23 +73,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (email: string, password: string): Promise<void> => {
     setError(null);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
+    // Call backend GraphQL login mutation while preserving mock user data for UI
+    try {
+      const mutation = `mutation Login($email: String!, $contrasena: String!) {\n        login(input: { email: $email, contrasena: $contrasena }) { token }\n      }`;
+
+      const res: any = await gqlRequest(mutation, { email, contrasena: password });
+      const token = res?.login?.token;
+      if (token) {
+        localStorage.setItem('authToken', token);
+      }
+    } catch (err) {
+      // If backend call fails, we still allow login with mock users for dev
+      console.warn('Backend login failed:', err);
+    }
+
+    // Preserve the local mock users so the rest of the UI keeps working immediately
     const mockUser = mockUsers[email];
-    
     if (!mockUser || mockUser.password !== password) {
       setError('Credenciales inválidas. Por favor, verifique su email y contraseña.');
       return;
     }
-    
+
     setUser(mockUser.user);
   };
 
   const logout = (): void => {
     setUser(null);
     setError(null);
+    localStorage.removeItem('authToken');
     // Reset notifications to initial state
     localStorage.removeItem('medical-app-sample-notifications');
     // Clear resource blocks on logout
