@@ -92,6 +92,7 @@ const LoginForm: React.FC = () => {
               <p>Usuarios de prueba:</p>
               <p>Doctor: maria.garcia@hospital.com</p>
               <p>Paciente: juan.perez@hospital.com</p>
+              <p>Admin: admin@hospital.com</p>
               <p>Contraseña: 123456</p>
             </div>
           </form>

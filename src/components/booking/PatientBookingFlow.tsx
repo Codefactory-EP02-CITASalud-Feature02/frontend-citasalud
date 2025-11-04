@@ -3,12 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
-import { CalendarIcon, MapPinIcon, ClockIcon, CheckCircle2, CircleIcon } from 'lucide-react';
+import { CalendarIcon, MapPinIcon, ClockIcon, CheckCircle2, CircleIcon, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { useResourceBlocks } from '@/hooks/useResourceBlocks';
+import { useAppointments } from '@/hooks/useAppointments';
 
 interface BookingData {
   date: Date | undefined;
@@ -31,6 +33,8 @@ const PatientBookingFlow: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { isResourceBlocked } = useResourceBlocks();
+  const { addAppointment } = useAppointments();
 
   const steps = [
     { id: 1, title: 'Fecha', label: 'Fecha' },
@@ -115,6 +119,48 @@ const PatientBookingFlow: React.FC = () => {
   };
 
   const handleConfirmBooking = () => {
+    if (!bookingData.date || !user) return;
+
+    // Calculate end time (1 hour after start)
+    const startHour = parseInt(bookingData.time.split(':')[0]);
+    const endTime = `${String(startHour + 1).padStart(2, '0')}:00`;
+
+    // Save appointment to system
+    const locationName = locations.find(l => l.id === bookingData.location)?.name || bookingData.location;
+    addAppointment({
+      patientName: user.name,
+      examType: bookingData.specificExam,
+      date: format(bookingData.date, 'yyyy-MM-dd'),
+      startTime: bookingData.time,
+      endTime: endTime,
+      location: locationName,
+    });
+
+    // Add notification to localStorage
+    const notification = {
+      title: 'Cita Confirmada',
+      message: `Su cita de ${bookingData.specificExam} ha sido confirmada para el ${format(bookingData.date, "dd/MM/yyyy", { locale: es })} a las ${bookingData.time} en ${locationName}`,
+      type: 'confirmation' as const,
+      priority: 'high' as const,
+      icon: 'Calendar',
+      sentVia: 'Email'
+    };
+    
+    const existingNotifications = JSON.parse(localStorage.getItem('medical-app-notifications') || '[]');
+    const newNotification = {
+      ...notification,
+      id: Date.now().toString(),
+      time: new Date().toLocaleString('es-ES', { 
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      read: false
+    };
+    localStorage.setItem('medical-app-notifications', JSON.stringify([newNotification, ...existingNotifications]));
+    
     setCurrentStep(5); // Go to success screen
     
     // Simulate notification
@@ -272,19 +318,87 @@ const PatientBookingFlow: React.FC = () => {
                 {/* Time Selection */}
                 <div>
                   <h3 className="font-medium mb-3">Hora</h3>
-                  <div className="grid grid-cols-4 gap-3">
-                    {timeSlots.map((time) => (
-                      <Button
-                        key={time}
-                        variant={bookingData.time === time ? "default" : "outline"}
-                        className="w-full"
-                        onClick={() => handleTimeSelect(time)}
-                      >
-                        <ClockIcon className="h-4 w-4 mr-1" />
-                        {time}
-                      </Button>
-                    ))}
-                  </div>
+                  {bookingData.date && bookingData.specificExam && (
+                    <div className="grid grid-cols-4 gap-3">
+                      {timeSlots.map((time) => {
+                        // Map exam to resource - each exam type can use multiple resources
+                        const examToResourceMap: Record<string, string[]> = {
+                          'Radiografía': ['sala-rayos-x-1', 'sala-rayos-x-2'],
+                          'Tomografía': ['tomografo'],
+                          'Resonancia Magnética': ['resonancia-magnetica'],
+                          'Ecografía': ['ecografo-principal'],
+                          'Electrocardiograma': ['laboratorio-clinico'],
+                          'Ecocardiograma': ['laboratorio-clinico'],
+                          'Prueba de Esfuerzo': ['laboratorio-clinico'],
+                          'Holter': ['laboratorio-clinico'],
+                          'Hemograma Completo': ['laboratorio-clinico'],
+                          'Química Sanguínea': ['laboratorio-clinico'],
+                          'Perfil Lipídico': ['laboratorio-clinico'],
+                          'Uroanálisis': ['laboratorio-clinico'],
+                        };
+                        
+                        const resources = examToResourceMap[bookingData.specificExam] || [];
+                        const dateStr = format(bookingData.date, 'yyyy-MM-dd');
+                        
+                        // For exams that require resources (like Radiografía with multiple rooms),
+                        // the time is blocked only if ALL required resources are blocked
+                        // This allows booking if at least one resource is available
+                        const allResourcesBlocked = resources.length > 0 && 
+                          resources.every(resource => {
+                            const blocked = isResourceBlocked(resource, dateStr, time);
+                            console.log(`Checking ${resource} at ${time} on ${dateStr}: ${blocked ? 'BLOCKED' : 'available'}`);
+                            return blocked;
+                          });
+                        
+                        console.log(`Time ${time} - All resources blocked: ${allResourcesBlocked}, Resources: ${resources.join(', ')}`);
+                        
+                        const handleTimeClick = () => {
+                          if (allResourcesBlocked) {
+                            toast({
+                              title: "Horario no disponible",
+                              description: "Este horario está bloqueado por mantenimiento.",
+                              variant: "destructive",
+                            });
+                          } else {
+                            handleTimeSelect(time);
+                          }
+                        };
+                        
+                        return (
+                          <div key={time} className="relative pb-3">
+                            <Button
+                              variant={bookingData.time === time ? "default" : "outline"}
+                              className="w-full h-9"
+                              onClick={handleTimeClick}
+                              disabled={allResourcesBlocked}
+                            >
+                              {allResourcesBlocked ? (
+                                <>
+                                  <Lock className="h-3 w-3 mr-1" />
+                                  {time}
+                                </>
+                              ) : (
+                                <>
+                                  <ClockIcon className="h-3 w-3 mr-1" />
+                                  {time}
+                                </>
+                              )}
+                            </Button>
+                            {allResourcesBlocked && (
+                              <div className="absolute -bottom-0.5 left-0 right-0 text-[9px] font-semibold text-destructive text-center bg-background/80 py-0.5">
+                                mantenimiento
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {(!bookingData.date || !bookingData.specificExam) && (
+                    <p className="text-sm text-muted-foreground">
+                      Seleccione un examen específico para ver horarios disponibles
+                    </p>
+                  )}
                 </div>
 
                 {/* Booking Summary */}

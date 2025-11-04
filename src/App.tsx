@@ -16,6 +16,7 @@ import Schedule from "./pages/Schedule";
 import History from "./pages/History";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
+import ResourceBlocks from "./pages/ResourceBlocks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const AppRoutes = () => {
         <Route path="history" element={<History />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="resource-blocks" element={<ResourceBlocks />} />
       </Route>
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<NotFound />} />

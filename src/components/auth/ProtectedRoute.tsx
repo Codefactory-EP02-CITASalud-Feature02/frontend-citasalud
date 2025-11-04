@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiresScheduling = false 
 }) => {
   const { isAuthenticated, hasSchedulingAccess, user } = useAuth();
+  const navigate = useNavigate();
 
   // Not authenticated - redirect to login
   if (!isAuthenticated) {
@@ -57,13 +58,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               
               <div className="flex gap-3 justify-center">
                 <Button 
-                  onClick={() => window.history.back()}
+                  onClick={() => navigate(-1)}
                   variant="outline"
                 >
                   Volver
                 </Button>
                 <Button 
-                  onClick={() => window.location.href = '/dashboard'}
+                  onClick={() => navigate('/dashboard')}
                 >
                   Ir al Dashboard
                 </Button>

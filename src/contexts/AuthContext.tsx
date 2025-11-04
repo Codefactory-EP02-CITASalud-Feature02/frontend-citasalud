@@ -52,6 +52,17 @@ const mockUsers: Record<string, { password: string; user: User }> = {
 
 const rolesWithSchedulingAccess = ['doctor', 'admin', 'nurse', 'patient'];
 
+// Add admin user for resource blocks management
+mockUsers['admin@hospital.com'] = {
+  password: '123456',
+  user: {
+    id: '4',
+    name: 'Administrador',
+    email: 'admin@hospital.com',
+    role: 'admin'
+  }
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +89,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = (): void => {
     setUser(null);
     setError(null);
+    // Reset notifications to initial state
+    localStorage.removeItem('medical-app-sample-notifications');
+    // Clear resource blocks on logout
+    localStorage.removeItem('medical-app-resource-blocks');
   };
 
   const clearError = (): void => {
