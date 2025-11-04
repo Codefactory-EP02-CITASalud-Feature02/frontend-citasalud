@@ -340,9 +340,17 @@ const PatientBookingFlow: React.FC = () => {
                         const resources = examToResourceMap[bookingData.specificExam] || [];
                         const dateStr = format(bookingData.date, 'yyyy-MM-dd');
                         
-                        // Check if ALL resources for this exam are blocked at this time
+                        // For exams that require resources (like Radiografía with multiple rooms),
+                        // the time is blocked only if ALL required resources are blocked
+                        // This allows booking if at least one resource is available
                         const allResourcesBlocked = resources.length > 0 && 
-                          resources.every(resource => isResourceBlocked(resource, dateStr, time));
+                          resources.every(resource => {
+                            const blocked = isResourceBlocked(resource, dateStr, time);
+                            console.log(`Checking ${resource} at ${time} on ${dateStr}: ${blocked ? 'BLOCKED' : 'available'}`);
+                            return blocked;
+                          });
+                        
+                        console.log(`Time ${time} - All resources blocked: ${allResourcesBlocked}, Resources: ${resources.join(', ')}`);
                         
                         const handleTimeClick = () => {
                           if (allResourcesBlocked) {
@@ -357,29 +365,29 @@ const PatientBookingFlow: React.FC = () => {
                         };
                         
                         return (
-                          <div key={time} className="relative pb-2">
+                          <div key={time} className="relative pb-3">
                             <Button
                               variant={bookingData.time === time ? "default" : "outline"}
-                              className="w-full"
+                              className="w-full h-9"
                               onClick={handleTimeClick}
                               disabled={allResourcesBlocked}
                             >
                               {allResourcesBlocked ? (
                                 <>
-                                  <Lock className="h-4 w-4 mr-1" />
+                                  <Lock className="h-3 w-3 mr-1" />
                                   {time}
                                 </>
                               ) : (
                                 <>
-                                  <ClockIcon className="h-4 w-4 mr-1" />
+                                  <ClockIcon className="h-3 w-3 mr-1" />
                                   {time}
                                 </>
                               )}
                             </Button>
                             {allResourcesBlocked && (
-                              <span className="absolute -bottom-1 left-0 right-0 text-[10px] font-medium text-destructive text-center">
+                              <div className="absolute -bottom-0.5 left-0 right-0 text-[9px] font-semibold text-destructive text-center bg-background/80 py-0.5">
                                 mantenimiento
-                              </span>
+                              </div>
                             )}
                           </div>
                         );
