@@ -11,6 +11,7 @@ export interface Appointment {
   endTime: string;
   location: string;
   createdAt: string;
+  status?: 'scheduled' | 'completed' | 'cancelled';
 }
 
 const STORAGE_KEY = 'medical-app-appointments';
@@ -101,72 +102,76 @@ export function useAppointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   // Cargar citas: primero intentar obtenerlas desde el backend (misCitas), si falla usar localStorage
-  useEffect(() => {
-    let cancelled = false;
+  async function loadAppointments() {
+    // Try backend
+    try {
+      const query = `query MisCitas { misCitas { idCita fechaHora estado examen { id nombre } sede { id nombre direccion } motivoCancelacion } }`;
+      const res: any = await gqlRequest(query, {});
+      const citas = res?.misCitas;
+      if (citas && Array.isArray(citas)) {
+        const mapped = citas.map((c: any) => {
+          const fechaHora = c.fechaHora || new Date().toISOString();
+          const datePart = fechaHora.split('T')[0];
+          const timePart = fechaHora.includes('T') ? fechaHora.split('T')[1].substring(0,5) : '';
+          // end time: +1 hour as a best-effort
+          let endTime = '';
+          try {
+            const dt = new Date(fechaHora);
+            const dtEnd = new Date(dt.getTime() + 60 * 60 * 1000);
+            endTime = dtEnd.toTimeString().substring(0,5);
+          } catch (e) {
+            endTime = '';
+          }
 
-    async function loadAppointments() {
-      // Try backend
-      try {
-        const query = `query MisCitas { misCitas { idCita fechaHora estado examen { id nombre } sede { id nombre direccion } motivoCancelacion } }`;
-        const res: any = await gqlRequest(query, {});
-        const citas = res?.misCitas;
-        if (citas && Array.isArray(citas) && !cancelled) {
-          const mapped = citas.map((c: any) => {
-            const fechaHora = c.fechaHora || new Date().toISOString();
-            const datePart = fechaHora.split('T')[0];
-            const timePart = fechaHora.includes('T') ? fechaHora.split('T')[1].substring(0,5) : '';
-            // end time: +1 hour as a best-effort
-            let endTime = '';
-            try {
-              const dt = new Date(fechaHora);
-              const dtEnd = new Date(dt.getTime() + 60 * 60 * 1000);
-              endTime = dtEnd.toTimeString().substring(0,5);
-            } catch (e) {
-              endTime = '';
-            }
+          return {
+            id: String(c.idCita),
+            patientName: user?.name ?? 'Tú',
+            examType: c.examen?.nombre ?? '',
+            date: datePart,
+            startTime: timePart,
+            endTime,
+            location: c.sede?.nombre ?? '',
+            createdAt: fechaHora,
+            status: ((): 'scheduled'|'completed'|'cancelled' => {
+              const e = (c.estado || '').toString().toUpperCase();
+              if (e.includes('CANCEL')) return 'cancelled';
+              if (e.includes('FINAL')) return 'completed';
+              return 'scheduled';
+            })()
+          } as Appointment;
+        });
 
-            return {
-              id: String(c.idCita),
-              patientName: user?.name ?? 'Tú',
-              examType: c.examen?.nombre ?? '',
-              date: datePart,
-              startTime: timePart,
-              endTime,
-              location: c.sede?.nombre ?? '',
-              createdAt: fechaHora
-            } as Appointment;
-          });
-
-          setAppointments(mapped);
-          // Also store in localStorage for offline/dev fallback
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
-          return;
-        }
-      } catch (err) {
-        console.warn('Could not load appointments from backend, falling back to localStorage', err);
+        setAppointments(mapped);
+        // Also store in localStorage for offline/dev fallback
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+        return;
       }
-
-      // Fallback: localStorage or sample data
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (!cancelled) setAppointments(parsed);
-        } catch (error) {
-          console.error('Error loading appointments:', error);
-          if (!cancelled) setAppointments(SAMPLE_APPOINTMENTS);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_APPOINTMENTS));
-        }
-      } else {
-        // Primera vez: cargar citas de ejemplo
-        if (!cancelled) setAppointments(SAMPLE_APPOINTMENTS);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_APPOINTMENTS));
-      }
+    } catch (err) {
+      console.warn('No se pudieron cargar las citas desde el servidor; se usarán los datos locales', err);
     }
 
-    loadAppointments();
+    // Fallback: localStorage or sample data
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setAppointments(parsed);
+      } catch (error) {
+        console.error('Error al cargar las citas:', error);
+        setAppointments(SAMPLE_APPOINTMENTS);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_APPOINTMENTS));
+      }
+    } else {
+      // Primera vez: cargar citas de ejemplo
+      setAppointments(SAMPLE_APPOINTMENTS);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_APPOINTMENTS));
+    }
+  }
 
-    return () => { cancelled = true; };
+  useEffect(() => {
+    // call once on mount or when user changes
+    loadAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Guardar en localStorage cuando cambien las citas
@@ -217,5 +222,7 @@ export function useAppointments() {
     getAppointmentsForDate,
     getAppointmentsForDateRange,
     clearAllAppointments,
+    // allow consumers to refresh from server
+    reloadAppointments: loadAppointments,
   };
 }
