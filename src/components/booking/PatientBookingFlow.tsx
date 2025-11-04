@@ -321,35 +321,50 @@ const PatientBookingFlow: React.FC = () => {
                   {bookingData.date && bookingData.specificExam && (
                     <div className="grid grid-cols-4 gap-3">
                       {timeSlots.map((time) => {
-                        // Map exam to resource
-                        const resourceMap: Record<string, string> = {
-                          'Radiografía': 'sala-rayos-x-1',
-                          'Tomografía': 'tomografo',
-                          'Resonancia Magnética': 'resonancia-magnetica',
-                          'Ecografía': 'ecografo-principal',
-                          'Electrocardiograma': 'laboratorio-clinico',
-                          'Ecocardiograma': 'laboratorio-clinico',
-                          'Prueba de Esfuerzo': 'laboratorio-clinico',
-                          'Holter': 'laboratorio-clinico',
-                          'Hemograma Completo': 'laboratorio-clinico',
-                          'Química Sanguínea': 'laboratorio-clinico',
-                          'Perfil Lipídico': 'laboratorio-clinico',
-                          'Uroanálisis': 'laboratorio-clinico',
+                        // Map exam to resource - each exam type can use multiple resources
+                        const examToResourceMap: Record<string, string[]> = {
+                          'Radiografía': ['sala-rayos-x-1', 'sala-rayos-x-2'],
+                          'Tomografía': ['tomografo'],
+                          'Resonancia Magnética': ['resonancia-magnetica'],
+                          'Ecografía': ['ecografo-principal'],
+                          'Electrocardiograma': ['laboratorio-clinico'],
+                          'Ecocardiograma': ['laboratorio-clinico'],
+                          'Prueba de Esfuerzo': ['laboratorio-clinico'],
+                          'Holter': ['laboratorio-clinico'],
+                          'Hemograma Completo': ['laboratorio-clinico'],
+                          'Química Sanguínea': ['laboratorio-clinico'],
+                          'Perfil Lipídico': ['laboratorio-clinico'],
+                          'Uroanálisis': ['laboratorio-clinico'],
                         };
                         
-                        const resource = resourceMap[bookingData.specificExam];
+                        const resources = examToResourceMap[bookingData.specificExam] || [];
                         const dateStr = format(bookingData.date, 'yyyy-MM-dd');
-                        const isBlocked = resource && isResourceBlocked(resource, dateStr, time);
+                        
+                        // Check if ALL resources for this exam are blocked at this time
+                        const allResourcesBlocked = resources.length > 0 && 
+                          resources.every(resource => isResourceBlocked(resource, dateStr, time));
+                        
+                        const handleTimeClick = () => {
+                          if (allResourcesBlocked) {
+                            toast({
+                              title: "Horario no disponible",
+                              description: "Este horario está bloqueado por mantenimiento.",
+                              variant: "destructive",
+                            });
+                          } else {
+                            handleTimeSelect(time);
+                          }
+                        };
                         
                         return (
-                          <div key={time} className="relative">
+                          <div key={time} className="relative pb-2">
                             <Button
                               variant={bookingData.time === time ? "default" : "outline"}
                               className="w-full"
-                              onClick={() => !isBlocked && handleTimeSelect(time)}
-                              disabled={isBlocked}
+                              onClick={handleTimeClick}
+                              disabled={allResourcesBlocked}
                             >
-                              {isBlocked ? (
+                              {allResourcesBlocked ? (
                                 <>
                                   <Lock className="h-4 w-4 mr-1" />
                                   {time}
@@ -361,8 +376,8 @@ const PatientBookingFlow: React.FC = () => {
                                 </>
                               )}
                             </Button>
-                            {isBlocked && (
-                              <span className="absolute -bottom-6 left-0 right-0 text-xs font-medium text-destructive bg-destructive/10 px-1 py-0.5 rounded text-center">
+                            {allResourcesBlocked && (
+                              <span className="absolute -bottom-1 left-0 right-0 text-[10px] font-medium text-destructive text-center">
                                 mantenimiento
                               </span>
                             )}

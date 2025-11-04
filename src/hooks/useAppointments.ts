@@ -13,46 +13,83 @@ export interface Appointment {
 
 const STORAGE_KEY = 'medical-app-appointments';
 
+// Helper to get dates for current month
+const getCurrentMonthDates = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  
+  return {
+    date1: `${year}-${String(month + 1).padStart(2, '0')}-15`,
+    date2: `${year}-${String(month + 1).padStart(2, '0')}-16`,
+    date3: `${year}-${String(month + 1).padStart(2, '0')}-17`,
+    date4: `${year}-${String(month + 1).padStart(2, '0')}-18`,
+    date5: `${year}-${String(month + 1).padStart(2, '0')}-22`,
+  };
+};
+
+const dates = getCurrentMonthDates();
+
 // Citas de ejemplo que coinciden con las del historial
 const SAMPLE_APPOINTMENTS: Appointment[] = [
   {
     id: 'sample-1',
     patientName: 'María García',
     examType: 'Ecografía Abdominal',
-    date: '2025-10-28',
+    date: dates.date1,
     startTime: '09:00',
     endTime: '10:00',
     location: 'Sede Norte',
-    createdAt: new Date().toISOString()
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
     id: 'sample-2',
     patientName: 'Carlos Rodríguez',
     examType: 'Consulta Cardiológica',
-    date: '2025-10-28',
+    date: dates.date1,
     startTime: '14:00',
     endTime: '15:00',
     location: 'Sede Centro',
-    createdAt: new Date().toISOString()
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
     id: 'sample-3',
     patientName: 'Ana Martínez',
     examType: 'Radiografía de Tórax',
-    date: '2025-10-29',
+    date: dates.date2,
     startTime: '10:00',
     endTime: '11:00',
     location: 'Sede Norte',
-    createdAt: new Date().toISOString()
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
     id: 'sample-4',
     patientName: 'Pedro López',
     examType: 'Exámenes de Laboratorio',
-    date: '2025-10-30',
+    date: dates.date3,
     startTime: '11:00',
     endTime: '12:00',
     location: 'Sede Sur',
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'sample-5',
+    patientName: 'Laura Fernández',
+    examType: 'Tomografía',
+    date: dates.date4,
+    startTime: '15:00',
+    endTime: '16:00',
+    location: 'Sede Centro',
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'sample-6',
+    patientName: 'Juan Pérez',
+    examType: 'Resonancia Magnética',
+    date: dates.date5,
+    startTime: '08:00',
+    endTime: '09:00',
+    location: 'Sede Norte',
     createdAt: new Date().toISOString()
   },
 ];

@@ -60,38 +60,54 @@ export const useResourceBlocks = () => {
   };
 
   const isResourceBlocked = (resource: string, date: string, time: string): boolean => {
-    const checkDateTime = new Date(`${date}T${time}`);
     const checkDate = parseLocalDate(date);
     
     return blocks.some(block => {
+      // Check if the resource is in the block
       if (!block.resources.includes(resource)) return false;
 
       const blockStart = parseLocalDate(block.startDate);
       const blockEnd = parseLocalDate(block.endDate);
-      const blockStartDateTime = new Date(`${block.startDate}T${block.startTime}`);
-      const blockEndDateTime = new Date(`${block.endDate}T${block.endTime}`);
 
-      // Check if date falls within block period
-      if (checkDateTime >= blockStartDateTime && checkDateTime <= blockEndDateTime) {
-        return true;
+      // Helper to check if time falls within block time range
+      const isTimeInRange = (checkTime: string, startTime: string, endTime: string): boolean => {
+        // Convert times to minutes for easier comparison
+        const [checkH, checkM] = checkTime.split(':').map(Number);
+        const [startH, startM] = startTime.split(':').map(Number);
+        const [endH, endM] = endTime.split(':').map(Number);
+        
+        const checkMinutes = checkH * 60 + checkM;
+        const startMinutes = startH * 60 + startM;
+        const endMinutes = endH * 60 + endM;
+        
+        // Check if time is within or equal to the range
+        return checkMinutes >= startMinutes && checkMinutes < endMinutes;
+      };
+
+      // Check if the date is within the block's date range
+      const isDateInRange = checkDate >= blockStart && checkDate <= blockEnd;
+      
+      // For non-recurring blocks
+      if (block.recurrence === 'none') {
+        return isDateInRange && isTimeInRange(time, block.startTime, block.endTime);
       }
 
-      // Check recurrence
-      if (block.recurrence !== 'none' && block.recurrenceEndDate) {
+      // For recurring blocks
+      if (block.recurrenceEndDate) {
         const recurrenceEnd = parseLocalDate(block.recurrenceEndDate);
-        if (checkDate > recurrenceEnd) return false;
+        
+        // Check if date is within recurrence range
+        if (checkDate < blockStart || checkDate > recurrenceEnd) return false;
 
         if (block.recurrence === 'weekly') {
           // Check if same day of week and within time range
           if (checkDate.getDay() === blockStart.getDay()) {
-            const timeOnly = time;
-            return timeOnly >= block.startTime && timeOnly <= block.endTime;
+            return isTimeInRange(time, block.startTime, block.endTime);
           }
         } else if (block.recurrence === 'monthly') {
           // Check if same day of month and within time range
           if (checkDate.getDate() === blockStart.getDate()) {
-            const timeOnly = time;
-            return timeOnly >= block.startTime && timeOnly <= block.endTime;
+            return isTimeInRange(time, block.startTime, block.endTime);
           }
         }
       }
