@@ -58,7 +58,7 @@ interface Appointment {
   date: string;
   time: string;
   location: string;
-  status: 'scheduled' | 'completed' | 'cancelled';
+  status: 'confirmed' | 'pending' | 'cancelled' | 'requires_documents' | 'checked_in' | 'completed' | 'no_show';
   type: 'consultation' | 'lab' | 'specialist' | 'diagnostic';
   icon: typeof Stethoscope;
   notes: string;
@@ -67,6 +67,7 @@ interface Appointment {
   cancellationReason?: string;
   cancelledBy?: string;
   cancelledAt?: string;
+  requiredDocuments?: string[];
 }
 
 const History: React.FC = () => {
@@ -204,15 +205,17 @@ const History: React.FC = () => {
     const base: Appointment = {
       id: r.id,
       title: r.examType || 'Cita',
-      doctor: '',
+      doctor: r.patientName || 'No asignado',
       date: r.date,
       time: r.startTime || '',
       location: r.location || '',
-      status: (r.status as Appointment['status']) || 'scheduled',
+      status: (r.status as Appointment['status']) || 'pending',
       type: 'consultation',
       icon: Stethoscope,
       notes: '',
       documents: [],
+      cancellationReason: r.cancellationReason,
+      requiredDocuments: r.requiredDocuments,
     };
 
     // assign a more appropriate icon if exam name suggests lab/diagnostic
@@ -230,13 +233,21 @@ const History: React.FC = () => {
     return { ...base, ...override } as Appointment;
   });
 
-  const getStatusVariant = (status: string) => {
+  const getStatusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
       case 'completed':
         return 'default';
-      case 'scheduled':
+      case 'confirmed':
+        return 'default';
+      case 'pending':
         return 'secondary';
       case 'cancelled':
+        return 'destructive';
+      case 'requires_documents':
+        return 'outline';
+      case 'checked_in':
+        return 'secondary';
+      case 'no_show':
         return 'destructive';
       default:
         return 'secondary';
@@ -247,12 +258,41 @@ const History: React.FC = () => {
     switch (status) {
       case 'completed':
         return 'Completada';
-      case 'scheduled':
-        return 'Programada';
+      case 'confirmed':
+        return 'Confirmada';
+      case 'pending':
+        return 'Pendiente';
       case 'cancelled':
         return 'Cancelada';
+      case 'requires_documents':
+        return 'Requiere Docs';
+      case 'checked_in':
+        return 'En Sede';
+      case 'no_show':
+        return 'No Asistió';
       default:
         return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'text-medical-success border-medical-success bg-medical-success/10';
+      case 'confirmed':
+        return 'text-medical-success border-medical-success bg-medical-success/10';
+      case 'pending':
+        return 'text-medical-warning border-medical-warning bg-medical-warning/10';
+      case 'cancelled':
+        return 'text-destructive border-destructive bg-destructive/10';
+      case 'requires_documents':
+        return 'text-medical-orange border-medical-orange bg-medical-orange/10';
+      case 'checked_in':
+        return 'text-medical-info border-medical-info bg-medical-info/10';
+      case 'no_show':
+        return 'text-destructive border-destructive bg-destructive/10';
+      default:
+        return 'text-muted-foreground border-border bg-muted/10';
     }
   };
 
@@ -425,9 +465,11 @@ const History: React.FC = () => {
   });
 
   const stats = {
-    scheduled: appointmentHistory.filter(a => a.status === 'scheduled').length,
+    confirmed: appointmentHistory.filter(a => a.status === 'confirmed').length,
+    pending: appointmentHistory.filter(a => a.status === 'pending').length,
     completed: appointmentHistory.filter(a => a.status === 'completed').length,
     cancelled: appointmentHistory.filter(a => a.status === 'cancelled').length,
+    requiresDocuments: appointmentHistory.filter(a => a.status === 'requires_documents').length,
   };
 
   return (
@@ -460,9 +502,13 @@ const History: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="scheduled">Programada</SelectItem>
+                <SelectItem value="confirmed">Confirmada</SelectItem>
+                <SelectItem value="pending">Pendiente</SelectItem>
                 <SelectItem value="completed">Completada</SelectItem>
                 <SelectItem value="cancelled">Cancelada</SelectItem>
+                <SelectItem value="requires_documents">Requiere Documentos</SelectItem>
+                <SelectItem value="checked_in">En Sede</SelectItem>
+                <SelectItem value="no_show">No Asistió</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -481,12 +527,17 @@ const History: React.FC = () => {
                     <h3 className="text-xl font-semibold text-foreground">
                       {appointment.title}
                     </h3>
-                    <Badge variant={getStatusVariant(appointment.status)}>
+                    <Badge className={getStatusColor(appointment.status)}>
                       {getStatusText(appointment.status)}
                     </Badge>
                     {appointment.cancellationReason && (
-                      <Badge variant="outline" className="bg-muted">
+                      <Badge variant="outline" className="bg-muted text-muted-foreground">
                         Con motivo
+                      </Badge>
+                    )}
+                    {appointment.status === 'requires_documents' && (
+                      <Badge className="bg-medical-orange/10 text-medical-orange border-medical-orange/20">
+                        Requiere Documentos
                       </Badge>
                     )}
                   </div>
@@ -529,7 +580,7 @@ const History: React.FC = () => {
                     Ver
                   </Button>
                   
-                  {appointment.status === 'scheduled' && (
+                  {(appointment.status === 'confirmed' || appointment.status === 'pending') && (
                     <>
                       <Button
                         variant="ghost"
@@ -579,18 +630,26 @@ const History: React.FC = () => {
           <CardDescription>Resumen de sus citas médicas</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 text-center">
             <div>
-              <div className="text-3xl font-bold text-primary">{stats.scheduled}</div>
-              <p className="text-sm text-muted-foreground mt-1">Programadas</p>
+              <div className="text-3xl font-bold text-[hsl(var(--medical-success))]">{stats.confirmed}</div>
+              <p className="text-sm text-muted-foreground mt-1">Confirmadas</p>
             </div>
             <div>
-              <div className="text-3xl font-bold text-green-600">{stats.completed}</div>
+              <div className="text-3xl font-bold text-[hsl(var(--medical-warning))]">{stats.pending}</div>
+              <p className="text-sm text-muted-foreground mt-1">Pendientes</p>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-[hsl(var(--medical-success))]">{stats.completed}</div>
               <p className="text-sm text-muted-foreground mt-1">Completadas</p>
             </div>
             <div>
               <div className="text-3xl font-bold text-destructive">{stats.cancelled}</div>
               <p className="text-sm text-muted-foreground mt-1">Canceladas</p>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-[hsl(var(--medical-orange))]">{stats.requiresDocuments}</div>
+              <p className="text-sm text-muted-foreground mt-1">Req. Docs</p>
             </div>
           </div>
         </CardContent>
@@ -600,46 +659,128 @@ const History: React.FC = () => {
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Detalles de la Cita</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Detalles de la Cita</DialogTitle>
+              {selectedAppointment && (
+                <Badge className={getStatusColor(selectedAppointment.status)}>
+                  {getStatusText(selectedAppointment.status)}
+                </Badge>
+              )}
+            </div>
           </DialogHeader>
           {selectedAppointment && (
             <div className="space-y-4">
+              {/* Status Banners */}
+              {selectedAppointment.status === 'cancelled' && (
+                <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                  <p className="text-sm text-destructive font-medium">Esta cita ha sido cancelada.</p>
+                </div>
+              )}
+
+              {selectedAppointment.status === 'requires_documents' && (
+                <div className="flex items-start gap-2 p-3 bg-medical-orange/10 border border-medical-orange/20 rounded-lg">
+                  <AlertCircle className="h-5 w-5 text-medical-orange shrink-0 mt-0.5" />
+                  <p className="text-sm text-medical-orange font-medium">
+                    Se requieren documentos adicionales para proceder con esta cita.
+                  </p>
+                </div>
+              )}
+
+              {selectedAppointment.status === 'confirmed' && (
+                <div className="flex items-start gap-2 p-3 bg-medical-success/10 border border-medical-success/20 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-medical-success shrink-0 mt-0.5" />
+                  <p className="text-sm text-medical-success font-medium">Su cita ha sido confirmada.</p>
+                </div>
+              )}
+
+              {selectedAppointment.status === 'pending' && (
+                <div className="flex items-start gap-2 p-3 bg-medical-warning/10 border border-medical-warning/20 rounded-lg">
+                  <Info className="h-5 w-5 text-medical-warning shrink-0 mt-0.5" />
+                  <p className="text-sm text-medical-warning font-medium">Esta cita está pendiente de confirmación.</p>
+                </div>
+              )}
+
               <div>
                 <h4 className="font-semibold text-lg mb-1">{selectedAppointment.title}</h4>
                 <p className="text-sm text-muted-foreground">{selectedAppointment.category}</p>
               </div>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Fecha:</span>
-                  <span className="font-medium">{selectedAppointment.date}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Hora:</span>
-                  <span className="font-medium">{selectedAppointment.time}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sede:</span>
-                  <span className="font-medium">{selectedAppointment.location}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Profesional:</span>
-                  <span className="font-medium">{selectedAppointment.doctor}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Estado:</span>
-                  <Badge variant={getStatusVariant(selectedAppointment.status)}>
-                    {getStatusText(selectedAppointment.status)}
-                  </Badge>
+              {/* Appointment Details Card */}
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <h5 className="font-semibold text-sm mb-3 text-foreground">Detalles de la Cita</h5>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">Fecha</span>
+                      <p className="font-medium text-foreground">{selectedAppointment.date}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">Hora</span>
+                      <p className="font-medium text-foreground">{selectedAppointment.time}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">Sede</span>
+                      <p className="font-medium text-foreground">{selectedAppointment.location}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">Profesional</span>
+                      <p className="font-medium text-foreground">{selectedAppointment.doctor}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
+              {/* Cancellation Info */}
               {selectedAppointment.status === 'cancelled' && selectedAppointment.cancellationReason && (
-                <div className="p-4 bg-destructive/10 rounded-lg">
-                  <h5 className="font-medium mb-2 text-sm">Motivo de cancelación:</h5>
-                  <p className="text-sm text-destructive">{selectedAppointment.cancellationReason}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Cancelada por: {selectedAppointment.cancelledBy} • {selectedAppointment.cancelledAt}
+                <div className="border border-destructive/20 rounded-lg p-4 bg-destructive/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    <h5 className="font-semibold text-sm text-destructive">Información de Cancelación</h5>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Motivo:</span>
+                      <p className="text-foreground mt-1">{selectedAppointment.cancellationReason}</p>
+                    </div>
+                    {selectedAppointment.cancelledBy && (
+                      <div className="text-muted-foreground text-xs">
+                        Cancelada por: {selectedAppointment.cancelledBy}
+                        {selectedAppointment.cancelledAt && ` el ${selectedAppointment.cancelledAt}`}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Required Documents */}
+              {selectedAppointment.status === 'requires_documents' && selectedAppointment.requiredDocuments && (
+                <div className="border border-medical-orange/20 rounded-lg p-4 bg-medical-orange/5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileText className="h-4 w-4 text-medical-orange" />
+                    <h5 className="font-semibold text-sm text-medical-orange">Documentos Requeridos</h5>
+                  </div>
+                  <ul className="space-y-2">
+                    {selectedAppointment.requiredDocuments.map((doc, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-sm">
+                        <span className="text-medical-orange mt-1">•</span>
+                        <span className="text-foreground">{doc}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Por favor, presente estos documentos al llegar a su cita.
                   </p>
                 </div>
               )}

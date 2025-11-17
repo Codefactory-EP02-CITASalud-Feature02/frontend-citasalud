@@ -11,7 +11,9 @@ export interface Appointment {
   endTime: string;
   location: string;
   createdAt: string;
-  status?: 'scheduled' | 'completed' | 'cancelled';
+  status?: 'confirmed' | 'pending' | 'cancelled' | 'requires_documents' | 'checked_in' | 'completed' | 'no_show';
+  cancellationReason?: string;
+  requiredDocuments?: string[];
 }
 
 const STORAGE_KEY = 'medical-app-appointments';
@@ -43,7 +45,8 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     startTime: '09:00',
     endTime: '10:00',
     location: 'Sede Norte',
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'confirmed',
   },
   {
     id: 'sample-2',
@@ -53,7 +56,14 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     startTime: '14:00',
     endTime: '15:00',
     location: 'Sede Centro',
-    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'requires_documents',
+    requiredDocuments: [
+      'Documento de identidad',
+      'Orden médica actualizada',
+      'Resultados de exámenes previos',
+      'Carnet de EPS'
+    ]
   },
   {
     id: 'sample-3',
@@ -63,7 +73,8 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     startTime: '10:00',
     endTime: '11:00',
     location: 'Sede Norte',
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'completed',
   },
   {
     id: 'sample-4',
@@ -73,7 +84,8 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     startTime: '11:00',
     endTime: '12:00',
     location: 'Sede Sur',
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'pending',
   },
   {
     id: 'sample-5',
@@ -83,7 +95,9 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     startTime: '15:00',
     endTime: '16:00',
     location: 'Sede Centro',
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'cancelled',
+    cancellationReason: 'Conflicto de horarios - Surgió compromiso laboral urgente'
   },
   {
     id: 'sample-6',
@@ -93,7 +107,8 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     startTime: '08:00',
     endTime: '09:00',
     location: 'Sede Norte',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    status: 'checked_in',
   },
 ];
 
