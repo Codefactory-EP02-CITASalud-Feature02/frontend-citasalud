@@ -79,6 +79,10 @@ const History: React.FC = () => {
   const [reasonError, setReasonError] = useState('');
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showModifyDialog, setShowModifyDialog] = useState(false);
+  const [modifyingAppointment, setModifyingAppointment] = useState<Appointment | null>(null);
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
 
   // Use backend-backed appointments via the hook
   const { appointments: remoteAppointments, reloadAppointments } = useAppointments();
@@ -313,6 +317,44 @@ const History: React.FC = () => {
 
     setReasonError('');
     return true;
+  };
+
+  const handleModifyClick = (appointment: Appointment) => {
+    setModifyingAppointment(appointment);
+    setNewDate(appointment.date);
+    setNewTime(appointment.time);
+    setShowModifyDialog(true);
+  };
+
+  const handleModifyConfirm = () => {
+    if (!modifyingAppointment || !newDate || !newTime) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Por favor seleccione fecha y hora válidas",
+      });
+      return;
+    }
+
+    // Update in local overrides
+    setLocalOverrides(prev => ({
+      ...prev,
+      [modifyingAppointment.id]: {
+        ...prev[modifyingAppointment.id],
+        date: newDate,
+        time: newTime,
+      }
+    }));
+
+    toast({
+      title: "Cita modificada",
+      description: "La fecha y hora de su cita han sido actualizadas exitosamente.",
+    });
+
+    setShowModifyDialog(false);
+    setModifyingAppointment(null);
+    setNewDate('');
+    setNewTime('');
   };
 
   const handleCancelClick = (appointment: Appointment) => {
@@ -586,6 +628,7 @@ const History: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         className="flex-1 lg:flex-none"
+                        onClick={() => handleModifyClick(appointment)}
                       >
                         <Edit className="h-4 w-4 mr-2" />
                         Modificar
@@ -788,6 +831,79 @@ const History: React.FC = () => {
               <Button onClick={() => setShowDetailDialog(false)} className="w-full">
                 Cerrar
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modify Dialog */}
+      <Dialog open={showModifyDialog} onOpenChange={setShowModifyDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modificar Cita</DialogTitle>
+            <DialogDescription>
+              Seleccione la nueva fecha y hora para su cita
+            </DialogDescription>
+          </DialogHeader>
+          {modifyingAppointment && (
+            <div className="space-y-4">
+              <Card className="bg-muted/50">
+                <CardContent className="pt-4">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{modifyingAppointment.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>Fecha actual: {new Date(modifyingAppointment.date).toLocaleDateString('es-ES')}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>Hora actual: {modifyingAppointment.time}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="modify-date">Nueva Fecha</Label>
+                  <Input
+                    id="modify-date"
+                    type="date"
+                    value={newDate}
+                    onChange={(e) => setNewDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="modify-time">Nueva Hora</Label>
+                  <Input
+                    id="modify-time"
+                    type="time"
+                    value={newTime}
+                    onChange={(e) => setNewTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowModifyDialog(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleModifyConfirm}
+                >
+                  Confirmar Cambios
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
