@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppointments, Appointment as RemoteAppointment } from '@/hooks/useAppointments';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,9 +69,14 @@ interface Appointment {
   cancelledBy?: string;
   cancelledAt?: string;
   requiredDocuments?: string[];
+  // CONTROL DE ROLES: userId identifica quién creó la cita
+  userId: string;
 }
 
 const History: React.FC = () => {
+  // CONTROL DE ROLES: Obtener usuario y rol actual
+  const { user } = useAuth();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -220,6 +226,7 @@ const History: React.FC = () => {
       documents: [],
       cancellationReason: r.cancellationReason,
       requiredDocuments: r.requiredDocuments,
+      userId: r.userId, // CONTROL DE ROLES: preservar el userId de la cita
     };
 
     // assign a more appropriate icon if exam name suggests lab/diagnostic
@@ -236,6 +243,32 @@ const History: React.FC = () => {
     const override = localOverrides[r.id] || {};
     return { ...base, ...override } as Appointment;
   });
+
+  /**
+   * CONTROL DE ROLES: Función para verificar si el usuario actual puede cancelar/modificar una cita
+   * 
+   * @param appointment - La cita a verificar
+   * @returns true si el usuario tiene permiso para cancelar/modificar la cita
+   * 
+   * Reglas:
+   * - Los médicos ('doctor'), administradores ('admin') y enfermeras ('nurse') pueden cancelar cualquier cita
+   * - Los pacientes ('patient') solo pueden cancelar citas que ellos mismos crearon (appointment.userId === user.id)
+   */
+  const canUserModifyAppointment = (appointment: Appointment): boolean => {
+    if (!user) return false;
+    
+    // Médicos, admins y enfermeras tienen acceso completo
+    if (user.role === 'doctor' || user.role === 'admin' || user.role === 'nurse') {
+      return true;
+    }
+    
+    // Pacientes solo pueden modificar sus propias citas
+    if (user.role === 'patient') {
+      return appointment.userId === user.id;
+    }
+    
+    return false;
+  };
 
   const getStatusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
@@ -440,7 +473,8 @@ const History: React.FC = () => {
                 documents: cancellingAppointment.documents,
                 cancellationReason: cancellationReason || undefined,
                 cancelledBy: 'Paciente',
-                cancelledAt: new Date().toLocaleString('es-ES')
+                cancelledAt: new Date().toLocaleString('es-ES'),
+                userId: cancellingAppointment.userId // CONTROL DE ROLES: preservar userId
               };
               localStorage.setItem(key, JSON.stringify([single]));
             }
@@ -495,7 +529,18 @@ const History: React.FC = () => {
     setShowDetailDialog(true);
   };
 
+  /**
+   * CONTROL DE ROLES: Filtrado de citas según el rol del usuario
+   * 
+   * - Pacientes solo ven citas que ellos crearon (appointment.userId === user.id)
+   * - Médicos, admins y enfermeras ven todas las citas
+   */
   const filteredAppointments = appointmentHistory.filter(apt => {
+    // CONTROL DE ROLES: Pacientes solo ven sus propias citas
+    if (user?.role === 'patient' && apt.userId !== user.id) {
+      return false;
+    }
+    
     const matchesSearch = 
       apt.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       apt.doctor.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -622,7 +667,15 @@ const History: React.FC = () => {
                     Ver
                   </Button>
                   
-                  {(appointment.status === 'confirmed' || appointment.status === 'pending') && (
+                  {/* 
+                    CONTROL DE ROLES: Los botones de Modificar y Cancelar solo se muestran si:
+                    1. La cita está en estado 'confirmed' o 'pending'
+                    2. El usuario tiene permisos para modificar la cita (canUserModifyAppointment)
+                       - Médicos/admins/enfermeras: pueden modificar cualquier cita
+                       - Pacientes: solo pueden modificar citas que ellos crearon
+                  */}
+                  {(appointment.status === 'confirmed' || appointment.status === 'pending') && 
+                   canUserModifyAppointment(appointment) && (
                     <>
                       <Button
                         variant="ghost"

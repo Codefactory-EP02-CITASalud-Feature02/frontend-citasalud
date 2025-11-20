@@ -14,6 +14,10 @@ export interface Appointment {
   status?: 'confirmed' | 'pending' | 'cancelled' | 'requires_documents' | 'checked_in' | 'completed' | 'no_show';
   cancellationReason?: string;
   requiredDocuments?: string[];
+  // CONTROL DE ROLES: userId identifica quién creó la cita
+  // Los pacientes solo pueden ver/cancelar citas donde userId === su propio id
+  // Los médicos/admins pueden ver/cancelar todas las citas
+  userId: string;
 }
 
 const STORAGE_KEY = 'medical-app-appointments';
@@ -35,7 +39,9 @@ const getCurrentMonthDates = () => {
 
 const dates = getCurrentMonthDates();
 
-// Citas de ejemplo que coinciden con las del historial
+// CITAS DE EJEMPLO CON CONTROL DE ROLES
+// userId indica quién creó cada cita:
+// '1' = María García (doctor) - '2' = Juan Pérez (patient) - '3' = Ana López (patient)
 const SAMPLE_APPOINTMENTS: Appointment[] = [
   {
     id: 'sample-1',
@@ -47,6 +53,7 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     location: 'Sede Norte',
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'confirmed',
+    userId: '1', // Creada por María García (doctor)
   },
   {
     id: 'sample-2',
@@ -63,7 +70,8 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
       'Orden médica actualizada',
       'Resultados de exámenes previos',
       'Carnet de EPS'
-    ]
+    ],
+    userId: '2', // Creada por Juan Pérez (patient)
   },
   {
     id: 'sample-3',
@@ -75,6 +83,7 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     location: 'Sede Norte',
     createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'completed',
+    userId: '3', // Creada por Ana López (patient)
   },
   {
     id: 'sample-4',
@@ -86,6 +95,7 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     location: 'Sede Sur',
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'pending',
+    userId: '2', // Creada por Juan Pérez (patient)
   },
   {
     id: 'sample-5',
@@ -97,7 +107,8 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     location: 'Sede Centro',
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'cancelled',
-    cancellationReason: 'Conflicto de horarios - Surgió compromiso laboral urgente'
+    cancellationReason: 'Conflicto de horarios - Surgió compromiso laboral urgente',
+    userId: '3', // Creada por Ana López (patient)
   },
   {
     id: 'sample-6',
@@ -109,6 +120,7 @@ const SAMPLE_APPOINTMENTS: Appointment[] = [
     location: 'Sede Norte',
     createdAt: new Date().toISOString(),
     status: 'checked_in',
+    userId: '2', // Creada por Juan Pérez (patient)
   },
 ];
 
@@ -147,6 +159,7 @@ export function useAppointments() {
             endTime,
             location: c.sede?.nombre ?? '',
             createdAt: fechaHora,
+            userId: user?.id ?? '', // CONTROL DE ROLES: asignar userId del backend
             status: ((): 'scheduled'|'completed'|'cancelled' => {
               const e = (c.estado || '').toString().toUpperCase();
               if (e.includes('CANCEL')) return 'cancelled';
