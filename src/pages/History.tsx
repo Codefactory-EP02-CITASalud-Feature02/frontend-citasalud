@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppointments, Appointment as RemoteAppointment } from '@/hooks/useAppointments';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -58,7 +59,7 @@ interface Appointment {
   date: string;
   time: string;
   location: string;
-  status: 'scheduled' | 'completed' | 'cancelled';
+  status: 'confirmed' | 'pending' | 'cancelled' | 'requires_documents' | 'checked_in' | 'completed' | 'no_show';
   type: 'consultation' | 'lab' | 'specialist' | 'diagnostic';
   icon: typeof Stethoscope;
   notes: string;
@@ -67,9 +68,15 @@ interface Appointment {
   cancellationReason?: string;
   cancelledBy?: string;
   cancelledAt?: string;
+  requiredDocuments?: string[];
+  // CONTROL DE ROLES: userId identifica quién creó la cita
+  userId: string;
 }
 
 const History: React.FC = () => {
+  // CONTROL DE ROLES: Obtener usuario y rol actual
+  const { user } = useAuth();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -78,6 +85,10 @@ const History: React.FC = () => {
   const [reasonError, setReasonError] = useState('');
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showModifyDialog, setShowModifyDialog] = useState(false);
+  const [modifyingAppointment, setModifyingAppointment] = useState<Appointment | null>(null);
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
 
   // Use backend-backed appointments via the hook
   const { appointments: remoteAppointments, reloadAppointments } = useAppointments();
@@ -204,15 +215,18 @@ const History: React.FC = () => {
     const base: Appointment = {
       id: r.id,
       title: r.examType || 'Cita',
-      doctor: '',
+      doctor: r.patientName || 'No asignado',
       date: r.date,
       time: r.startTime || '',
       location: r.location || '',
-      status: (r.status as Appointment['status']) || 'scheduled',
+      status: (r.status as Appointment['status']) || 'pending',
       type: 'consultation',
       icon: Stethoscope,
       notes: '',
       documents: [],
+      cancellationReason: r.cancellationReason,
+      requiredDocuments: r.requiredDocuments,
+      userId: r.userId, // CONTROL DE ROLES: preservar el userId de la cita
     };
 
     // assign a more appropriate icon if exam name suggests lab/diagnostic
@@ -230,13 +244,47 @@ const History: React.FC = () => {
     return { ...base, ...override } as Appointment;
   });
 
-  const getStatusVariant = (status: string) => {
+  /**
+   * CONTROL DE ROLES: Función para verificar si el usuario actual puede cancelar/modificar una cita
+   * 
+   * @param appointment - La cita a verificar
+   * @returns true si el usuario tiene permiso para cancelar/modificar la cita
+   * 
+   * Reglas:
+   * - Los médicos ('doctor'), administradores ('admin') y enfermeras ('nurse') pueden cancelar cualquier cita
+   * - Los pacientes ('patient') solo pueden cancelar citas que ellos mismos crearon (appointment.userId === user.id)
+   */
+  const canUserModifyAppointment = (appointment: Appointment): boolean => {
+    if (!user) return false;
+    
+    // Médicos, admins y enfermeras tienen acceso completo
+    if (user.role === 'doctor' || user.role === 'admin' || user.role === 'nurse') {
+      return true;
+    }
+    
+    // Pacientes solo pueden modificar sus propias citas
+    if (user.role === 'patient') {
+      return appointment.userId === user.id;
+    }
+    
+    return false;
+  };
+
+  const getStatusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
       case 'completed':
         return 'default';
-      case 'scheduled':
+      case 'confirmed':
+        return 'default';
+      case 'pending':
         return 'secondary';
       case 'cancelled':
+        return 'destructive';
+      case 'requires_documents':
+        return 'outline';
+      case 'checked_in':
+        return 'secondary';
+      case 'no_show':
         return 'destructive';
       default:
         return 'secondary';
@@ -247,12 +295,41 @@ const History: React.FC = () => {
     switch (status) {
       case 'completed':
         return 'Completada';
-      case 'scheduled':
-        return 'Programada';
+      case 'confirmed':
+        return 'Confirmada';
+      case 'pending':
+        return 'Pendiente';
       case 'cancelled':
         return 'Cancelada';
+      case 'requires_documents':
+        return 'Requiere Docs';
+      case 'checked_in':
+        return 'En Sede';
+      case 'no_show':
+        return 'No Asistió';
       default:
         return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'text-medical-success border-medical-success bg-medical-success/10';
+      case 'confirmed':
+        return 'text-medical-success border-medical-success bg-medical-success/10';
+      case 'pending':
+        return 'text-medical-warning border-medical-warning bg-medical-warning/10';
+      case 'cancelled':
+        return 'text-destructive border-destructive bg-destructive/10';
+      case 'requires_documents':
+        return 'text-medical-orange border-medical-orange bg-medical-orange/10';
+      case 'checked_in':
+        return 'text-medical-info border-medical-info bg-medical-info/10';
+      case 'no_show':
+        return 'text-destructive border-destructive bg-destructive/10';
+      default:
+        return 'text-muted-foreground border-border bg-muted/10';
     }
   };
 
@@ -273,6 +350,44 @@ const History: React.FC = () => {
 
     setReasonError('');
     return true;
+  };
+
+  const handleModifyClick = (appointment: Appointment) => {
+    setModifyingAppointment(appointment);
+    setNewDate(appointment.date);
+    setNewTime(appointment.time);
+    setShowModifyDialog(true);
+  };
+
+  const handleModifyConfirm = () => {
+    if (!modifyingAppointment || !newDate || !newTime) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Por favor seleccione fecha y hora válidas",
+      });
+      return;
+    }
+
+    // Update in local overrides
+    setLocalOverrides(prev => ({
+      ...prev,
+      [modifyingAppointment.id]: {
+        ...prev[modifyingAppointment.id],
+        date: newDate,
+        time: newTime,
+      }
+    }));
+
+    toast({
+      title: "Cita modificada",
+      description: "La fecha y hora de su cita han sido actualizadas exitosamente.",
+    });
+
+    setShowModifyDialog(false);
+    setModifyingAppointment(null);
+    setNewDate('');
+    setNewTime('');
   };
 
   const handleCancelClick = (appointment: Appointment) => {
@@ -358,7 +473,8 @@ const History: React.FC = () => {
                 documents: cancellingAppointment.documents,
                 cancellationReason: cancellationReason || undefined,
                 cancelledBy: 'Paciente',
-                cancelledAt: new Date().toLocaleString('es-ES')
+                cancelledAt: new Date().toLocaleString('es-ES'),
+                userId: cancellingAppointment.userId // CONTROL DE ROLES: preservar userId
               };
               localStorage.setItem(key, JSON.stringify([single]));
             }
@@ -413,7 +529,18 @@ const History: React.FC = () => {
     setShowDetailDialog(true);
   };
 
+  /**
+   * CONTROL DE ROLES: Filtrado de citas según el rol del usuario
+   * 
+   * - Pacientes solo ven citas que ellos crearon (appointment.userId === user.id)
+   * - Médicos, admins y enfermeras ven todas las citas
+   */
   const filteredAppointments = appointmentHistory.filter(apt => {
+    // CONTROL DE ROLES: Pacientes solo ven sus propias citas
+    if (user?.role === 'patient' && apt.userId !== user.id) {
+      return false;
+    }
+    
     const matchesSearch = 
       apt.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       apt.doctor.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -425,9 +552,11 @@ const History: React.FC = () => {
   });
 
   const stats = {
-    scheduled: appointmentHistory.filter(a => a.status === 'scheduled').length,
+    confirmed: appointmentHistory.filter(a => a.status === 'confirmed').length,
+    pending: appointmentHistory.filter(a => a.status === 'pending').length,
     completed: appointmentHistory.filter(a => a.status === 'completed').length,
     cancelled: appointmentHistory.filter(a => a.status === 'cancelled').length,
+    requiresDocuments: appointmentHistory.filter(a => a.status === 'requires_documents').length,
   };
 
   return (
@@ -460,9 +589,13 @@ const History: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="scheduled">Programada</SelectItem>
+                <SelectItem value="confirmed">Confirmada</SelectItem>
+                <SelectItem value="pending">Pendiente</SelectItem>
                 <SelectItem value="completed">Completada</SelectItem>
                 <SelectItem value="cancelled">Cancelada</SelectItem>
+                <SelectItem value="requires_documents">Requiere Documentos</SelectItem>
+                <SelectItem value="checked_in">En Sede</SelectItem>
+                <SelectItem value="no_show">No Asistió</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -481,12 +614,17 @@ const History: React.FC = () => {
                     <h3 className="text-xl font-semibold text-foreground">
                       {appointment.title}
                     </h3>
-                    <Badge variant={getStatusVariant(appointment.status)}>
+                    <Badge className={getStatusColor(appointment.status)}>
                       {getStatusText(appointment.status)}
                     </Badge>
                     {appointment.cancellationReason && (
-                      <Badge variant="outline" className="bg-muted">
+                      <Badge variant="outline" className="bg-muted text-muted-foreground">
                         Con motivo
+                      </Badge>
+                    )}
+                    {appointment.status === 'requires_documents' && (
+                      <Badge className="bg-medical-orange/10 text-medical-orange border-medical-orange/20">
+                        Requiere Documentos
                       </Badge>
                     )}
                   </div>
@@ -529,12 +667,21 @@ const History: React.FC = () => {
                     Ver
                   </Button>
                   
-                  {appointment.status === 'scheduled' && (
+                  {/* 
+                    CONTROL DE ROLES: Los botones de Modificar y Cancelar solo se muestran si:
+                    1. La cita está en estado 'confirmed' o 'pending'
+                    2. El usuario tiene permisos para modificar la cita (canUserModifyAppointment)
+                       - Médicos/admins/enfermeras: pueden modificar cualquier cita
+                       - Pacientes: solo pueden modificar citas que ellos crearon
+                  */}
+                  {(appointment.status === 'confirmed' || appointment.status === 'pending') && 
+                   canUserModifyAppointment(appointment) && (
                     <>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="flex-1 lg:flex-none"
+                        onClick={() => handleModifyClick(appointment)}
                       >
                         <Edit className="h-4 w-4 mr-2" />
                         Modificar
@@ -579,18 +726,26 @@ const History: React.FC = () => {
           <CardDescription>Resumen de sus citas médicas</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 text-center">
             <div>
-              <div className="text-3xl font-bold text-primary">{stats.scheduled}</div>
-              <p className="text-sm text-muted-foreground mt-1">Programadas</p>
+              <div className="text-3xl font-bold text-[hsl(var(--medical-success))]">{stats.confirmed}</div>
+              <p className="text-sm text-muted-foreground mt-1">Confirmadas</p>
             </div>
             <div>
-              <div className="text-3xl font-bold text-green-600">{stats.completed}</div>
+              <div className="text-3xl font-bold text-[hsl(var(--medical-warning))]">{stats.pending}</div>
+              <p className="text-sm text-muted-foreground mt-1">Pendientes</p>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-[hsl(var(--medical-success))]">{stats.completed}</div>
               <p className="text-sm text-muted-foreground mt-1">Completadas</p>
             </div>
             <div>
               <div className="text-3xl font-bold text-destructive">{stats.cancelled}</div>
               <p className="text-sm text-muted-foreground mt-1">Canceladas</p>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-[hsl(var(--medical-orange))]">{stats.requiresDocuments}</div>
+              <p className="text-sm text-muted-foreground mt-1">Req. Docs</p>
             </div>
           </div>
         </CardContent>
@@ -600,46 +755,128 @@ const History: React.FC = () => {
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Detalles de la Cita</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Detalles de la Cita</DialogTitle>
+              {selectedAppointment && (
+                <Badge className={getStatusColor(selectedAppointment.status)}>
+                  {getStatusText(selectedAppointment.status)}
+                </Badge>
+              )}
+            </div>
           </DialogHeader>
           {selectedAppointment && (
             <div className="space-y-4">
+              {/* Status Banners */}
+              {selectedAppointment.status === 'cancelled' && (
+                <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                  <p className="text-sm text-destructive font-medium">Esta cita ha sido cancelada.</p>
+                </div>
+              )}
+
+              {selectedAppointment.status === 'requires_documents' && (
+                <div className="flex items-start gap-2 p-3 bg-medical-orange/10 border border-medical-orange/20 rounded-lg">
+                  <AlertCircle className="h-5 w-5 text-medical-orange shrink-0 mt-0.5" />
+                  <p className="text-sm text-medical-orange font-medium">
+                    Se requieren documentos adicionales para proceder con esta cita.
+                  </p>
+                </div>
+              )}
+
+              {selectedAppointment.status === 'confirmed' && (
+                <div className="flex items-start gap-2 p-3 bg-medical-success/10 border border-medical-success/20 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-medical-success shrink-0 mt-0.5" />
+                  <p className="text-sm text-medical-success font-medium">Su cita ha sido confirmada.</p>
+                </div>
+              )}
+
+              {selectedAppointment.status === 'pending' && (
+                <div className="flex items-start gap-2 p-3 bg-medical-warning/10 border border-medical-warning/20 rounded-lg">
+                  <Info className="h-5 w-5 text-medical-warning shrink-0 mt-0.5" />
+                  <p className="text-sm text-medical-warning font-medium">Esta cita está pendiente de confirmación.</p>
+                </div>
+              )}
+
               <div>
                 <h4 className="font-semibold text-lg mb-1">{selectedAppointment.title}</h4>
                 <p className="text-sm text-muted-foreground">{selectedAppointment.category}</p>
               </div>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Fecha:</span>
-                  <span className="font-medium">{selectedAppointment.date}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Hora:</span>
-                  <span className="font-medium">{selectedAppointment.time}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sede:</span>
-                  <span className="font-medium">{selectedAppointment.location}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Profesional:</span>
-                  <span className="font-medium">{selectedAppointment.doctor}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Estado:</span>
-                  <Badge variant={getStatusVariant(selectedAppointment.status)}>
-                    {getStatusText(selectedAppointment.status)}
-                  </Badge>
+              {/* Appointment Details Card */}
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <h5 className="font-semibold text-sm mb-3 text-foreground">Detalles de la Cita</h5>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">Fecha</span>
+                      <p className="font-medium text-foreground">{selectedAppointment.date}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">Hora</span>
+                      <p className="font-medium text-foreground">{selectedAppointment.time}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">Sede</span>
+                      <p className="font-medium text-foreground">{selectedAppointment.location}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="text-muted-foreground">Profesional</span>
+                      <p className="font-medium text-foreground">{selectedAppointment.doctor}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
+              {/* Cancellation Info */}
               {selectedAppointment.status === 'cancelled' && selectedAppointment.cancellationReason && (
-                <div className="p-4 bg-destructive/10 rounded-lg">
-                  <h5 className="font-medium mb-2 text-sm">Motivo de cancelación:</h5>
-                  <p className="text-sm text-destructive">{selectedAppointment.cancellationReason}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Cancelada por: {selectedAppointment.cancelledBy} • {selectedAppointment.cancelledAt}
+                <div className="border border-destructive/20 rounded-lg p-4 bg-destructive/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    <h5 className="font-semibold text-sm text-destructive">Información de Cancelación</h5>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Motivo:</span>
+                      <p className="text-foreground mt-1">{selectedAppointment.cancellationReason}</p>
+                    </div>
+                    {selectedAppointment.cancelledBy && (
+                      <div className="text-muted-foreground text-xs">
+                        Cancelada por: {selectedAppointment.cancelledBy}
+                        {selectedAppointment.cancelledAt && ` el ${selectedAppointment.cancelledAt}`}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Required Documents */}
+              {selectedAppointment.status === 'requires_documents' && selectedAppointment.requiredDocuments && (
+                <div className="border border-medical-orange/20 rounded-lg p-4 bg-medical-orange/5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileText className="h-4 w-4 text-medical-orange" />
+                    <h5 className="font-semibold text-sm text-medical-orange">Documentos Requeridos</h5>
+                  </div>
+                  <ul className="space-y-2">
+                    {selectedAppointment.requiredDocuments.map((doc, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-sm">
+                        <span className="text-medical-orange mt-1">•</span>
+                        <span className="text-foreground">{doc}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Por favor, presente estos documentos al llegar a su cita.
                   </p>
                 </div>
               )}
@@ -647,6 +884,79 @@ const History: React.FC = () => {
               <Button onClick={() => setShowDetailDialog(false)} className="w-full">
                 Cerrar
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modify Dialog */}
+      <Dialog open={showModifyDialog} onOpenChange={setShowModifyDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modificar Cita</DialogTitle>
+            <DialogDescription>
+              Seleccione la nueva fecha y hora para su cita
+            </DialogDescription>
+          </DialogHeader>
+          {modifyingAppointment && (
+            <div className="space-y-4">
+              <Card className="bg-muted/50">
+                <CardContent className="pt-4">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{modifyingAppointment.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>Fecha actual: {new Date(modifyingAppointment.date).toLocaleDateString('es-ES')}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>Hora actual: {modifyingAppointment.time}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="modify-date">Nueva Fecha</Label>
+                  <Input
+                    id="modify-date"
+                    type="date"
+                    value={newDate}
+                    onChange={(e) => setNewDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="modify-time">Nueva Hora</Label>
+                  <Input
+                    id="modify-time"
+                    type="time"
+                    value={newTime}
+                    onChange={(e) => setNewTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowModifyDialog(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleModifyConfirm}
+                >
+                  Confirmar Cambios
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

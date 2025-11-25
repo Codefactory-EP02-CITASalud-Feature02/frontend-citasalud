@@ -134,6 +134,7 @@ const PatientBookingFlow: React.FC = () => {
       startTime: bookingData.time,
       endTime: endTime,
       location: locationName,
+      userId: user.id, // CONTROL DE ROLES: asignar el id del usuario que crea la cita
     });
 
     // Add notification to localStorage
